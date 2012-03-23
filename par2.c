@@ -25,6 +25,11 @@ void sort(md5_t arr[], int beg, int end);
 
 void create_recovery_files( spar_t *h )
 {
+    // Progress string
+    int digits = snprintf( 0, 0, "%d", h->n_recovery_blocks );
+    char *progress_format = malloc( 30 );
+    sprintf( progress_format, "Computing block: %%%dd/%%%dd\r", digits, digits );
+
     // Exponential scheme
     int blocks_current_file = 1;
     int blocknum = 0;
@@ -87,6 +92,10 @@ void create_recovery_files( spar_t *h )
         // Calculate the recovery slices
         for ( int i = 0, tx = 0, crit_i = 0; i < blocks_current_file; i++ )
         {
+            // Print the progress
+            printf( progress_format, blocknum, h->n_recovery_blocks );
+            fflush( stdout );
+
             recvslice->exponent = blocknum;
             recoveryslice( h->input_files, h->n_input_files, blocknum, h->blocksize, (uint16_t*)(recvslice+1) );
 
@@ -141,6 +150,7 @@ void create_recovery_files( spar_t *h )
     fclose( fp );
 
     free( filename );
+    free( progress_format );
 }
 
 void spar_parse( spar_t *h, int argc, char **argv )
