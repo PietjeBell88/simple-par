@@ -40,7 +40,7 @@ void create_recovery_files( spar_t *h )
     for ( int b = extra; b > 0; b >>= 1 )
         h->n_recovery_files++;
 
-    // Allocate the recovery files structs
+    // Allocate the recovery filenames
     h->recovery_filenames = (char**) malloc( h->n_recovery_files * sizeof(char*) );
     size_t fnlength = strlen(h->basename) + strlen(h->par2_fnformat) + 20;
     for ( int i = 0; i < h->n_recovery_files; i++ )
