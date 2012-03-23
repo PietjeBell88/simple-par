@@ -16,8 +16,7 @@
 #include "extern/md5.h"
 
 void md5_memory( char *buf, size_t length, md5_t *digest );
-void md5_packet( pkt_header_t *header, md5_t *digest );
-void md5_packet2( pkt_header_t *header );
+void md5_packet( pkt_header_t *header );
 void md5_file( FILE *fp, md5_t *digest );
 void md5_16k( FILE *fp, md5_t *digest );
 void md5_fid( md5_t *hash_16k, uint64_t size, char *filename, size_t fn_length, md5_t *digest );
@@ -54,7 +53,7 @@ void create_recovery_files( spar_t *h )
     header = &creator.header;
     SET_HEADER(header, h->recovery_id, PACKET_CREATOR, sizeof(pkt_creator_t));
     SET_CREATOR(creator.creator);
-    md5_packet2( header );
+    md5_packet( header );
 
     // Allocate the packets and data block contiguously
     size_t packet_length = sizeof(pkt_recvslice_t) + h->blocksize;
@@ -91,7 +90,7 @@ void create_recovery_files( spar_t *h )
             recvslice->exponent = blocknum;
             recoveryslice( h->input_files, h->n_input_files, blocknum, h->blocksize, (uint16_t*)(recvslice+1) );
 
-            md5_packet( header, &header->packet_md5 );
+            md5_packet( header );
 
             // TODO: valgrind error? But WHY~?
             fwrite( recvslice, 1, packet_length, fp );
@@ -240,7 +239,7 @@ void generate_critical_packets( spar_t *h )
         SET_MD5(&(fids[i]), &fdesc->fid);
 
         SET_HEADER(header, h->recovery_id, PACKET_FILEDESC, packet_length);
-        md5_packet( header, &header->packet_md5 );
+        md5_packet( header );
 
         //****** INPUT FILE SLICE CHECKSUM PACKETS ******//
         // TODO: md5 checksum of a certain slice as soon as possible
@@ -274,7 +273,7 @@ void generate_critical_packets( spar_t *h )
             crc32( slice, h->blocksize, &chksm[s].crc );
         }
 
-        md5_packet( header, &header->packet_md5 );
+        md5_packet( header );
 
         free( slice );
     }
@@ -301,7 +300,7 @@ void generate_critical_packets( spar_t *h )
     sort( fids, 0, main_packet->n_files );
     memcpy( main_packet + 1, fids, h->n_input_files * sizeof(md5_t) );
 
-    md5_packet( header, &header->packet_md5 );
+    md5_packet( header );
 
     // Recovery ID as generated from the BODY of the main packet
     md5_memory( (void*)(header+1), packet_length - sizeof(pkt_header_t), &h->recovery_id );
@@ -310,7 +309,7 @@ void generate_critical_packets( spar_t *h )
     for( int i = 0; i < h->n_critical_packets; i++ )
     {
         SET_MD5(h->critical_packets[i]->recovery_id, h->recovery_id);
-        md5_packet2( h->critical_packets[i] );
+        md5_packet( h->critical_packets[i] );
     }
 
     free( fids );
@@ -353,12 +352,7 @@ void md5_memory( char *buf, size_t length, md5_t *digest )
     free( ctx );
 }
 
-void md5_packet( pkt_header_t *header, md5_t *digest )
-{
-    md5_memory( (void*)(&header->recovery_id), header->length - 32, digest );
-}
-
-void md5_packet2( pkt_header_t *header )
+void md5_packet( pkt_header_t *header )
 {
     md5_memory( (void*)(&header->recovery_id), header->length - 32, &(header->packet_md5) );
 }
