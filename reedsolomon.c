@@ -45,9 +45,9 @@ uint16_t gfpow(uint16_t base, uint16_t exponent)
 
 void setup_tables()
 {
-    gflog  = (uint16_t*) malloc( sizeof(uint16_t) * NW );
-    gfilog = (uint16_t*) malloc( sizeof(uint16_t) * NW );
-    vander = (uint16_t*) malloc( sizeof(uint16_t) * (NW/2 + 1) ); // Because we apparenty start at exponent 0 instead of 1
+    gflog  = malloc( sizeof(uint16_t) * NW );
+    gfilog = malloc( sizeof(uint16_t) * NW );
+    vander = malloc( sizeof(uint16_t) * (NW/2 + 1) ); // Because we apparenty start at exponent 0 instead of 1
 
     int log = 0;
     unsigned b = 1, v = 0;

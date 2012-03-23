@@ -45,10 +45,10 @@ void create_recovery_files( spar_t *h )
         h->n_recovery_files++;
 
     // Allocate the recovery filenames
-    h->recovery_filenames = (char**) malloc( h->n_recovery_files * sizeof(char*) );
+    h->recovery_filenames = malloc( h->n_recovery_files * sizeof(char*) );
     size_t fnlength = strlen(h->basename) + strlen(h->par2_fnformat) + 20;
     for ( int i = 0; i < h->n_recovery_files; i++ )
-        h->recovery_filenames[i] = (char*) malloc( fnlength );
+        h->recovery_filenames[i] = malloc( fnlength );
 
     // Useful alias
     pkt_header_t *header;
@@ -159,7 +159,7 @@ void spar_parse( spar_t *h, int argc, char **argv )
     unsigned char blabla[] = {0x42,0x08,0x09,0x66,0x0b,0x1e,0xcd,0x26,0x6f,0xfc,0xd0,0xcd,0xe5,0x82,0x2e,0x0a};
     SET_MD5(&h->recovery_id, &blabla);
 
-    h->input_files = (diskfile_t*) malloc( h->n_input_files * sizeof(diskfile_t) );
+    h->input_files = malloc( h->n_input_files * sizeof(diskfile_t) );
 
     h->n_input_slices = 0;
     h->largest_filesize = 0;
@@ -254,7 +254,7 @@ void generate_critical_packets( spar_t *h )
         // Might help to slow down fastest thread
 
         // Allocate buffer
-        char *slice = (char *) malloc( h->blocksize );
+        char *slice = malloc( h->blocksize );
 
         packet_length = sizeof(pkt_ifsc_t) + h->input_files[i].n_slices * sizeof(checksum_t);
         h->critical_packets[crit_i] = malloc( packet_length );
@@ -352,7 +352,7 @@ int main( int argc, char **argv )
 
 void md5_memory( char *buf, size_t length, md5_t *digest )
 {
-    context_md5_t *ctx = (context_md5_t*) malloc( sizeof(context_md5_t) );
+    context_md5_t *ctx = malloc( sizeof(context_md5_t) );
     MD5Init( ctx );
     MD5Update( ctx, (unsigned char*) buf, length );
     MD5Final( (unsigned char*)digest, ctx );
@@ -366,7 +366,7 @@ void md5_packet( pkt_header_t *header )
 
 void md5_file( FILE *fp, md5_t *digest )
 {
-    context_md5_t *ctx = (context_md5_t*) malloc( sizeof(context_md5_t) );
+    context_md5_t *ctx = malloc( sizeof(context_md5_t) );
     char buf[1L << 15];
 
     MD5Init( ctx );
@@ -379,7 +379,7 @@ void md5_file( FILE *fp, md5_t *digest )
 
 void md5_16k( FILE *fp, md5_t *digest )
 {
-    context_md5_t *ctx = (context_md5_t*) malloc( sizeof(context_md5_t) );
+    context_md5_t *ctx = malloc( sizeof(context_md5_t) );
     char buf[1L << 14];
 
     MD5Init( ctx );
@@ -391,7 +391,7 @@ void md5_16k( FILE *fp, md5_t *digest )
 
 void md5_fid( md5_t *hash_16k, uint64_t size, char *filename, size_t fn_length, md5_t *digest )
 {
-    context_md5_t *ctx = (context_md5_t*) malloc( sizeof(context_md5_t) );
+    context_md5_t *ctx = malloc( sizeof(context_md5_t) );
     size_t bufsize = sizeof( md5_t ) + sizeof( uint64_t ) + fn_length;
     char *buf = malloc( bufsize );
     char *temp = buf;
