@@ -240,7 +240,7 @@ void generate_critical_packets( spar_t *h )
         fclose( fp );
 
         // strlen(filename_in) instead of the entire field, to match par2cmdline
-        md5_memory( (unsigned char*)&fdesc->hash_16k, sizeof(md5_t)+sizeof(uint64_t)+strlen(filename_in), &fdesc->fid );
+        md5_memory( (void*)&fdesc->hash_16k, sizeof(md5_t)+sizeof(uint64_t)+strlen(filename_in), &fdesc->fid );
 
         // Save the file id for the main packet
         SET_MD5(&(fids[i]), &fdesc->fid);

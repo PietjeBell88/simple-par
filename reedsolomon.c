@@ -90,11 +90,7 @@ void recoveryslice( diskfile_t *files, int n_files, uint16_t blocknum, size_t le
     // Allocate buffer
     uint16_t *slice = malloc( length );
 
-    uint16_t constant = vander[blocknum];
-
     int col = 1;
-
-    int slicenum = 0;
 
     for ( int i = 0; i < n_files; i++ )
         for ( int j = 0; j < files[i].n_slices; j++ )
