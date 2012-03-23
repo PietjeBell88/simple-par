@@ -66,7 +66,6 @@ void create_recovery_files( spar_t *h )
 
     for ( int filenum = 0; filenum < h->n_recovery_files; filenum++ )
     {
-        //printf( "extra, blockscurrent:  %5d, %5d\n", extra, blocks_current_file );
         // Exponential at the bottom, full at the top
         if ( extra > 0 )
             blocks_current_file = MIN(blocks_current_file, extra);
@@ -77,8 +76,6 @@ void create_recovery_files( spar_t *h )
         int copies_crit = 0;
         for ( int t = blocks_current_file; t > 0; t >>= 1)
             copies_crit++;
-
-        printf( "copies_crit: %d, %d, %d\n", copies_crit, filenum, blocks_current_file );
 
         // Open the file for writing
         char *filename = h->recovery_filenames[filenum];
