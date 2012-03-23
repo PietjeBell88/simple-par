@@ -9,7 +9,6 @@
 #include "diskfile.h"
 
 uint16_t *gflog, *gfilog, *vander;
-uint32_t *exponents;
 
 uint16_t gfmult( uint16_t a, uint16_t b)
 {
@@ -49,13 +48,11 @@ void setup_tables()
     gflog  = (uint16_t*) malloc( sizeof(uint16_t) * NW );
     gfilog = (uint16_t*) malloc( sizeof(uint16_t) * NW );
     vander = (uint16_t*) malloc( sizeof(uint16_t) * (NW/2 + 1) ); // Because we apparenty start at exponent 0 instead of 1
-    exponents = (uint32_t*) malloc( sizeof(uint32_t) * (NW/2 + 1) );
 
     int log = 0;
     unsigned b = 1, v = 0;
     int n = 1;
 
-    exponents[0] = 0;
     vander[0] = 1;
 
     for ( ; log < NW-1; log++ ) {
@@ -68,7 +65,6 @@ void setup_tables()
 
         v = log+1;
         if (v%3 != 0 && v%5 != 0 && v%17 != 0 && v%257 != 0) {
-            exponents[n] = v;
             vander[n] = b;
             n += 1;
         }
@@ -81,13 +77,12 @@ void free_tables()
     free( gflog );
     free( gfilog );
     free( vander );
-    free( exponents );
 }
 
 
 
 
-uint32_t recoveryslice( diskfile_t *files, int n_files, uint16_t blocknum, size_t length, uint16_t *dest )
+void recoveryslice( diskfile_t *files, int n_files, uint16_t blocknum, size_t length, uint16_t *dest )
 {
     // TODO: Probably can somehow do only the remainder
     memset( dest, 0, length );
@@ -96,7 +91,6 @@ uint32_t recoveryslice( diskfile_t *files, int n_files, uint16_t blocknum, size_
     uint16_t *slice = malloc( length );
 
     uint16_t constant = vander[blocknum];
-    uint32_t exponent = exponents[blocknum];
 
     int col = 1;
 
@@ -107,7 +101,6 @@ uint32_t recoveryslice( diskfile_t *files, int n_files, uint16_t blocknum, size_
         {
             read_to_buf( &files[i], j*length, length, (void*)slice );
             uint16_t current = gfpow(vander[col], blocknum);
-            //printf( "ROW, COL, EXP, ELEM: %6d, %6d, %6d, %6d\n", blocknum, col-1, blocknum, current );
             for ( int k = 0; k < length/2; k++ )
                 dest[k] ^= gfmult( current, slice[k] );
 
@@ -115,8 +108,6 @@ uint32_t recoveryslice( diskfile_t *files, int n_files, uint16_t blocknum, size_
         }
 
     free( slice );
-
-    return exponents[blocknum];
 }
 
 

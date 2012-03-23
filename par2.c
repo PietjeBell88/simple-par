@@ -79,7 +79,7 @@ void create_recovery_files( spar_t *h )
         for ( int i = 0, tx = 0, crit_i = 0; i < blocks_current_file; i++ )
         {
             recvslice->exponent = blocknum;
-            int blabla = recoveryslice( h->input_files, h->n_input_files, blocknum, h->blocksize, (uint16_t*)(recvslice+1) );
+            recoveryslice( h->input_files, h->n_input_files, blocknum, h->blocksize, (uint16_t*)(recvslice+1) );
 
             md5_packet( header, &header->packet_md5 );
 
