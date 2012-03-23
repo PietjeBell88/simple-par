@@ -121,6 +121,27 @@ void create_recovery_files( spar_t *h )
     }
 
     free( recvslice );
+
+    // Write the empty .par2 with only the critical packets
+    fnlength = strlen(h->basename) + 6;
+    char *filename = malloc( fnlength );
+    snprintf( filename, fnlength, "%s.par2", h->basename );
+
+    FILE *fp = fopen( filename, "wb" );
+
+    // The FileDesc, IFSC and Main packets
+    for ( int i = 0; i < h->n_critical_packets; i++ )
+    {
+        pkt_header_t *packet = h->critical_packets[i];
+        fwrite( packet, 1, packet->length, fp );
+    }
+
+    // The Creator packet
+    header = (pkt_header_t*)&creator;
+    fwrite( header, 1, header->length, fp );
+    fclose( fp );
+
+    free( filename );
 }
 
 void spar_parse( spar_t *h, int argc, char **argv )
