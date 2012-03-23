@@ -1,0 +1,17 @@
+*~
+*.a
+*.diff
+*.orig
+*.rej
+*.dll*
+*.exe
+*.def
+*.lib
+*.o
+*.so*
+
+spar2
+
+*.txt
+*.par2
+*.hex
