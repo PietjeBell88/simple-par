@@ -46,6 +46,16 @@ void create_recovery_files( spar_t *h )
     for ( int i = 0; i < h->n_recovery_files; i++ )
         h->recovery_filenames[i] = (char*) malloc( fnlength );
 
+    // Useful alias
+    pkt_header_t *header;
+
+    // Generate the creator packet
+    pkt_creator_t creator;
+    header = &creator.header;
+    SET_HEADER(header, h->recovery_id, PACKET_CREATOR, sizeof(pkt_creator_t));
+    SET_CREATOR(creator.creator);
+    md5_packet2( header );
+
     // Allocate the packets and data block contiguously
     size_t packet_length = sizeof(pkt_recvslice_t) + h->blocksize;
     pkt_recvslice_t *recvslice = malloc( packet_length );
@@ -72,7 +82,7 @@ void create_recovery_files( spar_t *h )
         FILE *fp = fopen( filename, "wb" );
 
         // Packet Header
-        pkt_header_t *header = &recvslice->header;
+        header = &recvslice->header;
         SET_HEADER(header, h->recovery_id, PACKET_RECVSLIC, packet_length);
 
         // Calculate the recovery slices
@@ -97,18 +107,11 @@ void create_recovery_files( spar_t *h )
 
                 tx -= blocks_current_file;                // t*x -= t*(n/t)
             }
-
             blocknum += 1;
         }
 
-        // Write creator packet
-        pkt_creator_t creator;
-        // Alias
-        header = &creator.header;
-        SET_HEADER(header, h->recovery_id, PACKET_CREATOR, sizeof(pkt_creator_t));
-        SET_CREATOR(creator.creator);
-        md5_packet( header, &header->packet_md5 );
-
+        // Write the creator packet
+        header = (pkt_header_t*)&creator;
         fwrite( header, 1, header->length, fp );
 
         fclose( fp );
