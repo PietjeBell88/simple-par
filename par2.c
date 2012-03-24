@@ -295,14 +295,8 @@ int spar_parse( spar_t *h, int argc, char **argv )
     h->n_critical_packets = h->n_input_files * 2 + 1;  // n*(fdesc+ifsc) + main
 
     // TODO: Overestimate, fix by generating all filenames and blocknumbers before calculations
-    int digits_low = 1;
-    for ( int b = h->n_recovery_blocks; b >= 10; b /= 10 )
-        digits_low++;
-
-    // TODO: Overestimate, fix by generating all filenames and blocknumbers before calculations
-    int digits_count = 1;
-    for ( int b = MIN(h->max_blocks_per_file, h->n_recovery_blocks); b >= 10; b /= 10 )
-        digits_count++;
+    int digits_low   = snprintf( 0, 0, "%d", h->n_recovery_blocks );
+    int digits_count = snprintf( 0, 0, "%d", MIN(h->max_blocks_per_file, h->n_recovery_blocks) );
 
     sprintf( h->par2_fnformat, "%%s.vol%%0%dd+%%0%dd.par2", digits_low, digits_count );
 
