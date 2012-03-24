@@ -80,14 +80,16 @@ void create_recovery_files( spar_t *h )
     pkt_header_t *header;
 
     // Generate the creator packet
-    pkt_creator_t creator;
-    header = &creator.header;
-    SET_HEADER(header, h->recovery_id, PACKET_CREATOR, sizeof(pkt_creator_t));
-    SET_CREATOR(creator.creator);
+    int creator_string_length = snprintf( 0, 0, "%s", PAR2_CREATOR );
+    size_t packet_length = sizeof(pkt_creator_t) + ((creator_string_length + 3) & ~3);
+    pkt_creator_t *creator = calloc( packet_length, 1 );
+    header = &creator->header;
+    SET_HEADER(header, h->recovery_id, PACKET_CREATOR, packet_length);
+    SET_CREATOR((char*)(creator+1), creator_string_length);
     md5_packet( header );
 
     // Allocate the packets and data block contiguously
-    size_t packet_length = sizeof(pkt_recvslice_t) + h->blocksize;
+    packet_length = sizeof(pkt_recvslice_t) + h->blocksize;
     pkt_recvslice_t *recvslice = malloc( packet_length );
 
     for ( int filenum = 0; filenum < h->n_recovery_files; filenum++ )
@@ -142,7 +144,7 @@ void create_recovery_files( spar_t *h )
         }
 
         // Write the creator packet
-        header = (pkt_header_t*)&creator;
+        header = (pkt_header_t*)creator;
         fwrite( header, 1, header->length, fp );
 
         fclose( fp );
@@ -168,11 +170,12 @@ void create_recovery_files( spar_t *h )
     }
 
     // The Creator packet
-    header = (pkt_header_t*)&creator;
+    header = (pkt_header_t*)creator;
     fwrite( header, 1, header->length, fp );
     fclose( fp );
 
     free( filename );
+    free( creator );
     free( progress_format );
 }
 

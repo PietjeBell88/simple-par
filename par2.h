@@ -1,11 +1,11 @@
 #ifndef SPAR_PAR2_H
 #define SPAR_PAR2_H
 
-#define SPAR_VERSION "unknown"
-
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "spar2_version.h"
 
 #include "diskfile.h"
 
@@ -29,9 +29,9 @@ SET_MD5(hdr->recovery_id, recid); \
 hdr->length = plength; \
 })
 
-#define SET_CREATOR(a) ({ \
-for ( int _i = 0; _i < 36; _i++ ) \
-    a[_i] = PAR2_CREATOR[_i]; \
+#define SET_CREATOR(a,n) ({ \
+for ( int _i = 0; _i < (n); _i++ ) \
+    (a)[_i] = PAR2_CREATOR[_i]; \
 })
 
 
@@ -44,9 +44,7 @@ char PACKET_CREATOR[]  = {'P','A','R',' ','2','.','0','\0','C','r','e','a','t','
 
 char PAR2_MAGIC[]   = {'P','A','R','2','\0','P','K','T'};
 
-//char PAR2_CREATOR[] = {'S','P','A','R','P','A','R','2','v','0','.','1'};
-
-char PAR2_CREATOR[] = {'C','r','e','a','t','e','d',' ','b','y',' ','p','a','r','2','c','m','d','l','i','n','e',' ','v','e','r','s','i','o','n',' ','0','.','4','.','\0'};
+char PAR2_CREATOR[] = "Created by Simple Par (spar2) revision \"" SPAR_VERSION "\"\0";
 
 typedef unsigned char md5_t[16];
 
@@ -110,7 +108,7 @@ typedef struct
 typedef struct
 {
     pkt_header_t header;
-    char creator[36];  // ?*4 bytes long
+    //char creator[];  // ?*4 bytes long
 } pkt_creator_t;
 
 #pragma pack()

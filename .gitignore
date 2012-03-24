@@ -11,6 +11,7 @@
 *.so*
 
 spar2
+spar2_version.h
 
 *.txt
 *.par2
