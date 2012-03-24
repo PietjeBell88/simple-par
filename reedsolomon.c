@@ -27,16 +27,6 @@ uint16_t gfmult( uint16_t a, uint16_t b)
     return gfilog[sum_log];
 }
 
-uint16_t gfdiv(int a, int b)
-{
-    int diff_log;
-    if (a == 0) return 0;
-    if (b == 0) return -1; /* Can’t divide by 0 */
-    diff_log = gflog[a] - gflog[b];
-    if (diff_log < 0) diff_log += NW-1;
-    return gfilog[diff_log];
-}
-
 uint16_t gfpow(uint16_t base, uint16_t exponent)
 {
   if (exponent == 0) return 1;
