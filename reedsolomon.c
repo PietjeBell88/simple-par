@@ -8,7 +8,15 @@
 #include "reedsolomon.h"
 #include "diskfile.h"
 
+// Log/antilog tables
 uint16_t *gflog, *gfilog, *vander;
+
+// Lookup tables
+uint16_t ll[256][256];
+uint16_t lh[256][256];
+uint16_t hl[256][256];
+uint16_t hh[256][256];
+
 
 uint16_t gfmult( uint16_t a, uint16_t b)
 {
@@ -68,8 +76,17 @@ void setup_tables()
             vander[n] = b;
             n += 1;
         }
-
     }
+
+    // Lookup tables
+    for ( int i = 0; i < 256; i++ )
+        for ( int j = 0; j < 256; j++ )
+        {
+            ll[i][j] = gfmult(i   , j   );
+            lh[i][j] = gfmult(i   , j<<8);
+            hl[i][j] = gfmult(i<<8, j);
+            hh[i][j] = gfmult(i<<8, j<<8);
+        }
 }
 
 void free_tables()
@@ -79,8 +96,31 @@ void free_tables()
     free( vander );
 }
 
+void lookup_multiply( uint16_t f, uint16_t *slice, uint16_t *dest, int length )
+{
+    uint16_t fl = (f >> 0) & 0xff;
+    uint16_t fh = (f >> 8);
 
+    // Combine the four multiplication tables into two
+    uint16_t L[256];
+    uint16_t H[256];
 
+    for ( int i = 0; i < 256; i++ )
+    {
+        L[i] = ll[fl][i] ^ hl[fh][i];
+        H[i] = lh[fl][i] ^ hh[fh][i];
+    }
+
+    for ( int i = 0; i < (length>>1); i++ )
+    {
+        uint16_t s = slice[i];
+
+        uint16_t sl = (s >> 0) & 0xff;
+        uint16_t sh = (s >> 8);
+
+        dest[i] ^= L[sl] ^ H[sh];
+    }
+}
 
 void recoveryslice( diskfile_t *files, int n_files, uint16_t blocknum, size_t length, uint16_t *dest )
 {
@@ -97,8 +137,8 @@ void recoveryslice( diskfile_t *files, int n_files, uint16_t blocknum, size_t le
         {
             read_to_buf( &files[i], j*length, length, (void*)slice );
             uint16_t current = gfpow(vander[col], blocknum);
-            for ( int k = 0; k < length/2; k++ )
-                dest[k] ^= gfmult( current, slice[k] );
+
+            lookup_multiply( current, slice, dest, length );
 
             col += 1;
         }
