@@ -9,7 +9,7 @@
 #include "diskfile.h"
 
 // Log/antilog tables
-uint16_t *gflog, *gfilog, *vander;
+uint16_t gflog[NW], gfilog[NW], vander[(NW/2 + 1)];
 
 // Lookup tables
 uint16_t ll[256][256];
@@ -53,10 +53,6 @@ uint16_t gfpow(uint16_t base, uint16_t exponent)
 
 void setup_tables()
 {
-    gflog  = malloc( sizeof(uint16_t) * NW );
-    gfilog = malloc( sizeof(uint16_t) * NW );
-    vander = malloc( sizeof(uint16_t) * (NW/2 + 1) ); // Because we apparenty start at exponent 0 instead of 1
-
     int log = 0;
     unsigned b = 1, v = 0;
     int n = 1;
@@ -87,13 +83,6 @@ void setup_tables()
             hl[i][j] = gfmult(i<<8, j);
             hh[i][j] = gfmult(i<<8, j<<8);
         }
-}
-
-void free_tables()
-{
-    free( gflog );
-    free( gfilog );
-    free( vander );
 }
 
 void lookup_multiply( uint16_t f, uint16_t *slice, uint16_t *dest, int length )

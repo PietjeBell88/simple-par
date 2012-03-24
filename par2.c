@@ -346,8 +346,6 @@ int main( int argc, char **argv )
     for ( int i = 0; i < h.n_critical_packets; i++ )
         free( h.critical_packets[i] );
     free( h.critical_packets );
-
-    free_tables();
 }
 
 void md5_memory( char *buf, size_t length, md5_t *digest )
