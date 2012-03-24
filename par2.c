@@ -12,6 +12,7 @@
 #include "common.h"
 #include "reedsolomon.h"
 
+#include "extern/getopt.h"
 #include "extern/crc32.h"
 #include "extern/md5.h"
 
@@ -22,6 +23,31 @@ void md5_16k( FILE *fp, md5_t *digest );
 void md5_fid( md5_t *hash_16k, uint64_t size, char *filename, size_t fn_length, md5_t *digest );
 void sort(md5_t arr[], int beg, int end);
 
+
+static void spar_print_version()
+{
+    printf( "spar2 version: \"%s\"\n\n", SPAR_VERSION );
+    printf( "It's like par2cmdline but with less features:\n" );
+    printf( " - Only creation of par2 files. (no repair or verification)\n" );
+    printf( " - Only limited size exponential scheme supported (-l in par2cmdline).\n" );
+    printf( " - Only block size and redundancy can be set.\n\n" );
+    printf( "Made possible by \"Bored at Work\"^TM.\n" );
+}
+
+static void help( spar_t *h )
+{
+    printf( "spar2 version: \"%s\"\n\n", SPAR_VERSION );
+    printf( "Usage: spar2 c(reate) [options] <par2 file> [files]\n\n" );
+    printf( "Options:\n" );
+    printf( "  --help,           -h     : Print this message\n" );
+    printf( "  --version,        -v     : Return the version/program info\n" );
+    printf( "  --blocksize <n>,  -s<n>  : Set the block size and slice size to use [%lu]\n", h->blocksize );
+    printf( "  --redundancy <n>, -r<n>  : Level of Redundancy (%%) [%.2f]\n\n", h->redundancy );
+    printf( "If you wish to create par2 files for a single source file, you may leave\n" );
+    printf( "out the name of the par2 file from the command line. spar2 will then\n" );
+    printf( "assume that you wish to base the filenames for the par2 files on the name\n" );
+    printf( "of the source file.\n" );
+}
 
 void create_recovery_files( spar_t *h )
 {
@@ -150,12 +176,95 @@ void create_recovery_files( spar_t *h )
     free( progress_format );
 }
 
-void spar_parse( spar_t *h, int argc, char **argv )
+static char short_options[] = "hr:s:v";
+static struct option long_options[] =
+{
+    { "help",              no_argument, NULL, 'h' },
+    { "version",           no_argument, NULL, 'v' },
+    { "redundancy",  required_argument, NULL, 'r' },
+    { "blocksize",   required_argument, NULL, 's' },
+    {0, 0, 0, 0}
+};
+
+int spar_parse( spar_t *h, int argc, char **argv )
 {
     // Commandline Parsing
-    h->blocksize  = atoi( argv[1] );
-    h->redundancy = atof( argv[2] );
-    h->n_input_files = argc - 3;
+
+    // Defaults
+    h->redundancy = 5;
+    h->blocksize  = 640000;
+
+    // First check for help
+    if ( argc == 1 )
+    {
+        help( h );
+        exit( 0 );
+    }
+    for( optind = 0;; )
+    {
+        int c = getopt_long( argc, argv, short_options, long_options, NULL );
+
+        if( c == -1 )
+            break;
+        else if( c == 'h' )
+        {
+            help( h );
+            exit(0);
+        }
+    }
+
+    // Check for other options
+    for( optind = 0;; )
+    {
+        int c = getopt_long( argc, argv, short_options, long_options, NULL );
+
+        if( c == -1 )
+            break;
+
+        switch( c )
+        {
+            case 'v':
+                spar_print_version();
+                exit(0);
+            case 'r':
+                h->redundancy = atoi( optarg );
+                break;
+            case 's':
+                h->blocksize = atoi( optarg );
+                break;
+            default:
+                printf( "Error: getopt returned character code 0%o = %c\n", c, c );
+                return -1;
+        }
+    }
+
+    // Skip the c(reate)
+    optind++;
+
+    if ( optind < argc )
+    {
+        int remaining = argc - optind;
+
+        // Get the basename of the par2 files
+        if ( remaining == 1 )
+            h->basename = strdup( argv[optind] );
+        else
+        {
+             char *ext = strstr( argv[optind], ".par2" );
+            if (ext == NULL)
+                h->basename = strdup( argv[optind] );
+            else
+            {
+                // Copy the string until ".par2" into h->basename
+                int basename_length = ext - argv[optind];
+                h->basename = memcpy( calloc( basename_length + 1, 1 ), argv[optind], basename_length );
+            }
+            optind++;
+        }
+
+        h->n_input_files = argc - optind;
+    }
+
     unsigned char initial_recid[] = {0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42};
     SET_MD5(h->recovery_id, initial_recid);
 
@@ -168,7 +277,7 @@ void spar_parse( spar_t *h, int argc, char **argv )
     {
         diskfile_t *df = &h->input_files[i];
 
-        strcpy( df->filename, argv[i+3] );
+        df->filename = strdup( argv[optind++] );
         df->offset   = 0; //offsets[i];
         df->filesize = FILESIZE( df->filename ) - df->offset;
         df->n_slices = (df->filesize + h->blocksize - 1) / h->blocksize;
@@ -197,7 +306,7 @@ void spar_parse( spar_t *h, int argc, char **argv )
 
     sprintf( h->par2_fnformat, "%%s.vol%%0%dd+%%0%dd.par2", digits_low, digits_count );
 
-    sprintf( h->basename, "test" );
+    return 0;
 }
 
 void generate_critical_packets( spar_t *h )
@@ -330,7 +439,12 @@ int main( int argc, char **argv )
 
     spar_t h = {0};
 
-    spar_parse( &h, argc, argv );
+    int ret = spar_parse( &h, argc, argv );
+
+    if ( ret < 0 ) {
+        printf( "Error parsing commandline arguments.\n" );
+        exit(1);
+    }
 
     generate_critical_packets( &h );
 
@@ -340,6 +454,11 @@ int main( int argc, char **argv )
     for ( int i = 0; i < h.n_recovery_files; i++ )
         free( h.recovery_filenames[i] );
     free( h.recovery_filenames );
+
+    free( h.basename );
+
+    for( int i = 0; i < h.n_input_files; i++ )
+        free( h.input_files[i].filename );
 
     free( h.input_files );
 

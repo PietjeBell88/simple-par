@@ -1,6 +1,8 @@
 #ifndef SPAR_PAR2_H
 #define SPAR_PAR2_H
 
+#define SPAR_VERSION "unknown"
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -130,7 +132,7 @@ typedef struct
 
     // Par2 File Output
     char par2_fnformat[300];
-    char basename[300];
+    char *basename;
     int n_recovery_files;
     char **recovery_filenames;
 
