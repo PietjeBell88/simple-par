@@ -101,28 +101,29 @@ void lookup_multiply( uint16_t f, uint16_t *slice, uint16_t *dest, int length )
     }
 }
 
-void recoveryslice( diskfile_t *files, int n_files, uint16_t blocknum, size_t length, uint16_t *dest )
+void rs_process( diskfile_t *files, int n_files, int block_start, int block_end, size_t blocksize, uint16_t **dest, progress_t *progress )
 {
-    // TODO: Probably can somehow do only the remainder
-    memset( dest, 0, length );
-
     // Allocate buffer
-    uint16_t *slice = malloc( length );
+    uint16_t *slice = malloc( blocksize );
 
     int col = 1;
 
     for ( int i = 0; i < n_files; i++ )
         for ( int j = 0; j < files[i].n_slices; j++ )
         {
-            read_to_buf( &files[i], j*length, length, (void*)slice );
-            uint16_t current = gfpow(vander[col], blocknum);
+            read_to_buf( &files[i], j*blocksize, blocksize, (void*)slice );
+            for ( int b = block_start; b <= block_end; b++ )
+            {
+                uint16_t current = gfpow( vander[col], b );
+                lookup_multiply( current, slice, dest[b], blocksize );
 
-            lookup_multiply( current, slice, dest, length );
+                // Update and print the progress
+                progress->c_done++;
+                progress_print( progress );
+            }
 
             col += 1;
         }
 
     free( slice );
 }
-
-

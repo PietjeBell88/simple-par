@@ -51,14 +51,20 @@ static void help( spar_t *h )
 
 void create_recovery_files( spar_t *h )
 {
-    // Progress string
-    int digits = snprintf( 0, 0, "%d", h->n_recovery_blocks );
-    char *progress_format = malloc( 30 );
-    sprintf( progress_format, "Computing block: %%%dd/%%%dd\r", digits, digits );
+    // Progress of calculation and writing
+    progress_t *progress = progress_init( h->n_recovery_blocks, h->n_input_slices );
 
     // Exponential scheme
     int blocks_current_file = 1;
     int blocknum = 0;
+
+    // Generate all blocks
+    uint16_t **recv_data = malloc( h->n_recovery_blocks * sizeof(uint16_t*) );
+
+    for ( int i = 0; i < h->n_recovery_blocks; i++ )
+        recv_data[i] = calloc( h->blocksize, 1 );
+
+    rs_process( h->input_files, h->n_input_files, 0, h->n_recovery_blocks - 1, h->blocksize, recv_data, progress );
 
     // How many recovery files will we create?
     uint32_t whole = h->n_recovery_blocks / h->max_blocks_per_file;
@@ -117,12 +123,8 @@ void create_recovery_files( spar_t *h )
         // Calculate the recovery slices
         for ( int i = 0, tx = 0, crit_i = 0; i < blocks_current_file; i++ )
         {
-            // Print the progress
-            printf( progress_format, blocknum, h->n_recovery_blocks );
-            fflush( stdout );
-
             recvslice->exponent = blocknum;
-            recoveryslice( h->input_files, h->n_input_files, blocknum, h->blocksize, (uint16_t*)(recvslice+1) );
+            memcpy( (uint16_t*)(recvslice+1), recv_data[blocknum], h->blocksize );
 
             md5_packet( header );
 
@@ -141,6 +143,10 @@ void create_recovery_files( spar_t *h )
                 tx -= blocks_current_file;                // t*x -= t*(n/t)
             }
             blocknum += 1;
+
+            // Update and print the progress
+            progress->w_done++;
+            progress_print( progress );
         }
 
         // Write the creator packet
@@ -176,7 +182,15 @@ void create_recovery_files( spar_t *h )
 
     free( filename );
     free( creator );
-    free( progress_format );
+
+    for ( int i = 0; i < h->n_recovery_blocks; i++ )
+        free( recv_data[i] );
+    free( recv_data );
+
+    free( progress );
+
+    // Print a newline so the process will stay on screen
+    printf( "\n" );
 }
 
 static char short_options[] = "hr:s:v";

@@ -3,9 +3,10 @@
 
 #include <stdint.h>
 #include "diskfile.h"
+#include "common.h"
 
 void setup_tables();
 
-void recoveryslice( diskfile_t *files, int n_files, uint16_t blocknum, size_t length, uint16_t *dest );
+void rs_process( diskfile_t *files, int n_files, int block_start, int block_end, size_t blocksize, uint16_t **dest, progress_t *progress );
 
 #endif

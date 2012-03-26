@@ -1,7 +1,8 @@
 all: default
 # Sources
-SRCS  = par2.c diskfile.c reedsolomon.c \
-        extern/md5.c extern/crc32.c extern/getopt.c
+SRCS  = common.c diskfile.c reedsolomon.c \
+        extern/md5.c extern/crc32.c extern/getopt.c \
+        par2.c
 
 OBJS   += $(SRCS:%.c=%.o)
 
