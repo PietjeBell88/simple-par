@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 #include "par2.h"
 #include "diskfile.h"
@@ -21,7 +22,10 @@ void md5_packet( pkt_header_t *header );
 void md5_file( FILE *fp, md5_t *digest );
 void md5_16k( FILE *fp, md5_t *digest );
 void md5_fid( md5_t *hash_16k, uint64_t size, char *filename, size_t fn_length, md5_t *digest );
+
 void sort(md5_t arr[], int beg, int end);
+
+void * rs_process_wrapper( void *thread );
 
 
 static void spar_print_version()
@@ -42,8 +46,9 @@ static void help( spar_t *h )
     printf( "  --help,           -h     : Print this message\n" );
     printf( "  --version,        -v     : Return the version/program info\n" );
     printf( "  --blocksize <n>,  -s<n>  : Set the block size and slice size to use [%lu]\n", h->blocksize );
-    printf( "  --redundancy <n>, -r<n>  : Level of Redundancy (%%) [%.2f]\n\n", h->redundancy );
-    printf( "If you wish to create par2 files for a single source file, you may leave\n" );
+    printf( "  --redundancy <n>, -r<n>  : Level of Redundancy (%%) [%.2f]\n", h->redundancy );
+    printf( "  --threads <n>,    -t<n>  : Amount of threads to use [%d]\n", h->n_threads );
+    printf( "\nIf you wish to create par2 files for a single source file, you may leave\n" );
     printf( "out the name of the par2 file from the command line. spar2 will then\n" );
     printf( "assume that you wish to base the filenames for the par2 files on the name\n" );
     printf( "of the source file.\n" );
@@ -58,13 +63,25 @@ void create_recovery_files( spar_t *h )
     int blocks_current_file = 1;
     int blocknum = 0;
 
-    // Generate all blocks
+    // Allocate all possible blocks
     uint16_t **recv_data = malloc( h->n_recovery_blocks * sizeof(uint16_t*) );
 
     for ( int i = 0; i < h->n_recovery_blocks; i++ )
         recv_data[i] = calloc( h->blocksize, 1 );
 
-    rs_process( h->input_files, h->n_input_files, 0, h->n_recovery_blocks - 1, h->blocksize, recv_data, progress );
+    // Threads
+    thread_t *threads = malloc( h->n_threads * sizeof(thread_t) );
+
+    for ( int i = 0; i < h->n_threads; i++ )
+    {
+        threads[i].h           = h;
+        threads[i].block_start = i * h->blocks_per_thread;
+        threads[i].block_end   = MIN(h->n_recovery_blocks - 1, threads[i].block_start + h->blocks_per_thread - 1);
+        threads[i].recv_data   = &recv_data[threads[i].block_start];
+        threads[i].progress    = progress;
+        if ( threads[i].block_start <= threads[i].block_end )
+            pthread_create( &threads[i].thread, NULL, rs_process_wrapper, &threads[i] );
+    }
 
     // How many recovery files will we create?
     uint32_t whole = h->n_recovery_blocks / h->max_blocks_per_file;
@@ -98,6 +115,8 @@ void create_recovery_files( spar_t *h )
     packet_length = sizeof(pkt_recvslice_t) + h->blocksize;
     pkt_recvslice_t *recvslice = malloc( packet_length );
 
+    int t = 0; // Thread index that has the next few blocks
+
     for ( int filenum = 0; filenum < h->n_recovery_files; filenum++ )
     {
         // Exponential at the bottom, full at the top
@@ -123,6 +142,10 @@ void create_recovery_files( spar_t *h )
         // Calculate the recovery slices
         for ( int i = 0, tx = 0, crit_i = 0; i < blocks_current_file; i++ )
         {
+            // Wait for a thread to be done processing the next few blocks
+            if ( blocknum == threads[t].block_start )
+                pthread_join( threads[t].thread, NULL );
+
             recvslice->exponent = blocknum;
             memcpy( (uint16_t*)(recvslice+1), recv_data[blocknum], h->blocksize );
 
@@ -144,9 +167,14 @@ void create_recovery_files( spar_t *h )
             }
             blocknum += 1;
 
+            if ( blocknum > threads[t].block_end )
+                t++;
+
             // Update and print the progress
+            pthread_mutex_lock( progress->mut );
             progress->w_done++;
             progress_print( progress );
+            pthread_mutex_unlock( progress->mut );
         }
 
         // Write the creator packet
@@ -187,19 +215,23 @@ void create_recovery_files( spar_t *h )
         free( recv_data[i] );
     free( recv_data );
 
+    progress_delete( progress );
     free( progress );
+
+    free( threads );
 
     // Print a newline so the process will stay on screen
     printf( "\n" );
 }
 
-static char short_options[] = "hr:s:v";
+static char short_options[] = "hr:s:t:v";
 static struct option long_options[] =
 {
     { "help",              no_argument, NULL, 'h' },
     { "version",           no_argument, NULL, 'v' },
     { "redundancy",  required_argument, NULL, 'r' },
     { "blocksize",   required_argument, NULL, 's' },
+    { "threads",     required_argument, NULL, 't' },
     {0, 0, 0, 0}
 };
 
@@ -210,6 +242,7 @@ int spar_parse( spar_t *h, int argc, char **argv )
     // Defaults
     h->redundancy = 5;
     h->blocksize  = 640000;
+    h->n_threads  = 1;
 
     // First check for help
     if ( argc == 1 )
@@ -249,6 +282,9 @@ int spar_parse( spar_t *h, int argc, char **argv )
             case 's':
                 h->blocksize = atoi( optarg );
                 break;
+            case 't':
+                h->n_threads = atoi( optarg );
+                break;
             default:
                 printf( "Error: getopt returned character code 0%o = %c\n", c, c );
                 return -1;
@@ -282,6 +318,9 @@ int spar_parse( spar_t *h, int argc, char **argv )
         h->n_input_files = argc - optind;
     }
 
+    if ( h->n_threads < 1 )
+        h->n_threads = 1;
+
     unsigned char initial_recid[] = {0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42};
     SET_MD5(h->recovery_id, initial_recid);
 
@@ -310,6 +349,8 @@ int spar_parse( spar_t *h, int argc, char **argv )
     h->max_blocks_per_file = (h->largest_filesize + h->blocksize - 1) / h->blocksize;
 
     h->n_critical_packets = h->n_input_files * 2 + 1;  // n*(fdesc+ifsc) + main
+
+    h->blocks_per_thread = (h->n_recovery_blocks + h->n_threads - 1) / h->n_threads;
 
     // TODO: Overestimate, fix by generating all filenames and blocknumbers before calculations
     int digits_low   = snprintf( 0, 0, "%d", h->n_recovery_blocks );
@@ -577,6 +618,14 @@ void sort(md5_t arr[], int beg, int end)
         sort(arr, r, end);
     }
 }
+
+void * rs_process_wrapper( void *threadvoid )
+{
+    thread_t *thread = (thread_t*)threadvoid;
+    rs_process( thread->h->input_files, thread->h->n_input_files, thread->block_start, thread->block_end, thread->h->blocksize, thread->recv_data, thread->progress );
+    return NULL;
+}
+
 #undef HIGH
 #undef LOW
 

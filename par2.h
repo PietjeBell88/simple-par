@@ -8,6 +8,7 @@
 #include "spar2_version.h"
 
 #include "diskfile.h"
+#include "common.h"
 
 #define SET_MD5(a,b) ({ \
 for ( int _i = 0; _i < 16; _i++ ) \
@@ -128,6 +129,9 @@ typedef struct
     uint16_t n_recovery_blocks;
     uint16_t max_blocks_per_file;
 
+    int n_threads;
+    int blocks_per_thread;
+
     // Par2 File Output
     char par2_fnformat[300];
     char *basename;
@@ -137,5 +141,15 @@ typedef struct
     int n_critical_packets;
     pkt_header_t **critical_packets;  // Array of pointers to the critical packets
 } spar_t;
+
+typedef struct
+{
+    spar_t *h;
+    int block_start;
+    int block_end;  // Inclusive
+    pthread_t thread;
+    uint16_t **recv_data;
+    progress_t *progress;
+} thread_t;
 
 #endif

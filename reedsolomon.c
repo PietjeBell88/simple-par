@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 #include "reedsolomon.h"
 #include "diskfile.h"
@@ -112,15 +113,17 @@ void rs_process( diskfile_t *files, int n_files, int block_start, int block_end,
         for ( int j = 0; j < files[i].n_slices; j++ )
         {
             read_to_buf( &files[i], j*blocksize, blocksize, (void*)slice );
-            for ( int b = block_start; b <= block_end; b++ )
+            for ( int d = 0, b = block_start; b <= block_end; d++, b++ )
             {
                 uint16_t current = gfpow( vander[col], b );
-                lookup_multiply( current, slice, dest[b], blocksize );
-
-                // Update and print the progress
-                progress->c_done++;
-                progress_print( progress );
+                lookup_multiply( current, slice, dest[d], blocksize );
             }
+
+            // Update and print the progress
+            pthread_mutex_lock( progress->mut );
+            progress->c_done += block_end - block_start + 1;
+            progress_print( progress );
+            pthread_mutex_unlock( progress->mut );
 
             col += 1;
         }

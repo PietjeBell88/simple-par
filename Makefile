@@ -6,7 +6,7 @@ SRCS  = common.c diskfile.c reedsolomon.c \
 
 OBJS   += $(SRCS:%.c=%.o)
 
-CFLAGS = -Wall -g -O3 -std=c99
+CFLAGS = -pthread -Wall -g -O3 -std=c99
 
 .PHONY: default clean
 

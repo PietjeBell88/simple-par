@@ -19,9 +19,34 @@ progress_t *progress_init( int n_blocks, int n_slices )
     progress->w_total = n_blocks;
     progress->w_done  = 0;
 
+    progress->mut = malloc( sizeof(pthread_mutex_t) );
+    pthread_mutex_init( progress->mut, NULL );
+
     // Progress string
     int digits = snprintf( 0, 0, "%d", n_blocks );
     sprintf( progress->format, "Blocks Calculated [Written]: %%6.2f [%%%dd/%%%dd]\r", digits, digits );
 
     return progress;
+}
+
+void progress_delete( progress_t *progress )
+{
+    pthread_mutex_destroy( progress->mut );
+    free( progress->mut );
+}
+
+size_t FILESIZE(char *fname)
+{
+    FILE *f = fopen( fname, "r" );
+    fseek( f, 0, SEEK_END );
+    size_t size = ftell( f );
+    fclose( f );
+    return size;
+}
+
+char* strdup( const char * s )
+{
+    size_t len = 1 + strlen(s);
+    char *p = malloc( len );
+    return p ? memcpy( p, s, len ) : NULL;
 }
