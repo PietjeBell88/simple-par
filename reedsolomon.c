@@ -104,7 +104,12 @@ void lookup_multiply( uint16_t f, uint16_t *slice, uint16_t *dest, int length )
 
 void rs_process( diskfile_t *files, int n_files, int block_start, int block_end, size_t blocksize, uint16_t **dest, progress_t *progress )
 {
-    // Allocate buffer
+    // Set the destination buffers to zero
+    int n_blocks = block_end - block_start + 1;
+    for ( int d = 0; d < n_blocks; d++ )
+        memset( dest[d], 0, blocksize );
+
+    // Allocate read buffer
     uint16_t *slice = malloc( blocksize );
 
     int col = 1;

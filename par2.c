@@ -48,6 +48,7 @@ static void help( spar_t *h )
     printf( "  --blocksize <n>,  -s<n>  : Set the block size and slice size to use [%lu]\n", h->blocksize );
     printf( "  --redundancy <n>, -r<n>  : Level of Redundancy (%%) [%.2f]\n", h->redundancy );
     printf( "  --threads <n>,    -t<n>  : Amount of threads to use [%d]\n", h->n_threads );
+    printf( "  --memory <n>,     -m<n>  : Maximum amount of memory to be used for recovery blocks [%lu]\n", h->memory_max );
     printf( "\nIf you wish to create par2 files for a single source file, you may leave\n" );
     printf( "out the name of the par2 file from the command line. spar2 will then\n" );
     printf( "assume that you wish to base the filenames for the par2 files on the name\n" );
@@ -63,11 +64,12 @@ void create_recovery_files( spar_t *h )
     int blocks_current_file = 1;
     int blocknum = 0;
 
-    // Allocate all possible blocks
-    uint16_t **recv_data = malloc( h->n_recovery_blocks * sizeof(uint16_t*) );
+    // Allocate buffers for recovery blocks in memory
+    int recv_blocks_mem = h->blocks_per_thread * h->n_threads;
+    uint16_t **recv_data = malloc( recv_blocks_mem * sizeof(uint16_t*) );
 
-    for ( int i = 0; i < h->n_recovery_blocks; i++ )
-        recv_data[i] = calloc( h->blocksize, 1 );
+    for ( int i = 0; i < recv_blocks_mem; i++ )
+        recv_data[i] = malloc( h->blocksize );
 
     // Threads
     thread_t *threads = malloc( h->n_threads * sizeof(thread_t) );
@@ -147,7 +149,8 @@ void create_recovery_files( spar_t *h )
                 pthread_join( threads[t].thread, NULL );
 
             recvslice->exponent = blocknum;
-            memcpy( (uint16_t*)(recvslice+1), recv_data[blocknum], h->blocksize );
+            int recv_index = blocknum - threads[t].block_start + t * h->blocks_per_thread;
+            memcpy( (uint16_t*)(recvslice+1), recv_data[recv_index], h->blocksize );
 
             md5_packet( header );
 
@@ -167,8 +170,18 @@ void create_recovery_files( spar_t *h )
             }
             blocknum += 1;
 
+            // spawn a new thread for some new blocks (if there are any)
             if ( blocknum > threads[t].block_end )
-                t++;
+            {
+                int last_thread_index =  (t + h->n_threads - 1) % h->n_threads;
+                threads[t].block_start = threads[last_thread_index].block_end + 1;
+                threads[t].block_end   = MIN(h->n_recovery_blocks - 1, threads[t].block_start + h->blocks_per_thread - 1);
+                if ( threads[t].block_start <= threads[t].block_end )
+                    pthread_create( &threads[t].thread, NULL, rs_process_wrapper, &threads[t] );
+
+                t = (t+1) % h->n_threads;
+            }
+
 
             // Update and print the progress
             pthread_mutex_lock( progress->mut );
@@ -211,7 +224,7 @@ void create_recovery_files( spar_t *h )
     free( filename );
     free( creator );
 
-    for ( int i = 0; i < h->n_recovery_blocks; i++ )
+    for ( int i = 0; i < recv_blocks_mem; i++ )
         free( recv_data[i] );
     free( recv_data );
 
@@ -224,11 +237,12 @@ void create_recovery_files( spar_t *h )
     printf( "\n" );
 }
 
-static char short_options[] = "hr:s:t:v";
+static char short_options[] = "hm:r:s:t:v";
 static struct option long_options[] =
 {
     { "help",              no_argument, NULL, 'h' },
     { "version",           no_argument, NULL, 'v' },
+    { "memory",      required_argument, NULL, 'm' },
     { "redundancy",  required_argument, NULL, 'r' },
     { "blocksize",   required_argument, NULL, 's' },
     { "threads",     required_argument, NULL, 't' },
@@ -240,6 +254,7 @@ int spar_parse( spar_t *h, int argc, char **argv )
     // Commandline Parsing
 
     // Defaults
+    h->memory_max = 0;
     h->redundancy = 5;
     h->blocksize  = 640000;
     h->n_threads  = 1;
@@ -276,6 +291,26 @@ int spar_parse( spar_t *h, int argc, char **argv )
             case 'v':
                 spar_print_version();
                 exit(0);
+            case 'm':
+                h->memory_max = atol( optarg );
+                switch( optarg[strlen(optarg) - 1] )
+                {
+                    case 'K':
+                    case 'k':
+                        h->memory_max <<= 10;
+                        break;
+                    case 'M':
+                    case 'm':
+                        h->memory_max <<= 20;
+                        break;
+                    case 'G':
+                    case 'g':
+                        h->memory_max <<= 30;
+                        break;
+                    default:
+                        break;
+                }
+                break;
             case 'r':
                 h->redundancy = atoi( optarg );
                 break;
@@ -351,6 +386,16 @@ int spar_parse( spar_t *h, int argc, char **argv )
     h->n_critical_packets = h->n_input_files * 2 + 1;  // n*(fdesc+ifsc) + main
 
     h->blocks_per_thread = (h->n_recovery_blocks + h->n_threads - 1) / h->n_threads;
+
+    if ( h->memory_max > 0 )
+        h->blocks_per_thread = MIN(h->blocks_per_thread, h->memory_max / h->blocksize / h->n_threads);
+
+    if ( h->blocks_per_thread < 1 )
+    {
+        printf( "Input error: Maximum memory limit is smaller than one blocksize!\n" );
+        printf( "Setting it to calculate one block per thread at a time.\n" );
+        h->blocks_per_thread = 1;
+    }
 
     // TODO: Overestimate, fix by generating all filenames and blocknumbers before calculations
     int digits_low   = snprintf( 0, 0, "%d", h->n_recovery_blocks );

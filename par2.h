@@ -131,6 +131,7 @@ typedef struct
 
     int n_threads;
     int blocks_per_thread;
+    size_t memory_max;
 
     // Par2 File Output
     char par2_fnformat[300];
