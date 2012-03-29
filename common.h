@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <pthread.h>
 
 #define MIN(a,b) ({ \
     a > b ? b : a; \
@@ -15,6 +17,18 @@
 
 // Define macro for aligning data
 #define ALIGNED_16(X) X __attribute__((aligned(16)))
+
+typedef unsigned char md5_t[16];
+
+typedef uint32_t crc32_t;
+
+#pragma pack(1)
+typedef struct {
+    md5_t md5;
+    crc32_t crc;
+} checksum_t;
+#pragma pack(0)
+
 
 typedef struct
 {

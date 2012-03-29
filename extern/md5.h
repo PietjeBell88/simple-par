@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 // --------------------------------------------------------------
 // After this is the algorithm itself. You shouldn't change these
@@ -41,5 +42,7 @@ void MD5Transform(uint32_t buf[4], uint32_t const in[16]);
 void hash_init_md5(void * ctx);
 void hash_update_md5(void *ctx, const unsigned char *buf, size_t len);
 void hash_final_md5(void *ctx, unsigned char *digest);
+
+void md5_memory( void *buf, size_t length, void *digest );
 
 #endif /* ifndef __MD5_H */

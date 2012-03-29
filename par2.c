@@ -1,8 +1,4 @@
-// TODO:
-// proper slice reading
 // turn the weird PACKET_TYPE stuff back into normal strings.. since we have a macro anyway
-// CHECK: empty par file, critical packet order
-// ANSWER: fdesc van 1st input file, ifsc 1st input file, fdesc 2nd input file, ifsc 2nd..  <...> main packet
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,11 +14,10 @@
 #include "extern/crc32.h"
 #include "extern/md5.h"
 
-void md5_memory( char *buf, size_t length, md5_t *digest );
+void generate_critical_packets( spar_t *h );
+
 void md5_packet( pkt_header_t *header );
-void md5_file( FILE *fp, md5_t *digest );
-void md5_16k( FILE *fp, md5_t *digest );
-void md5_fid( md5_t *hash_16k, uint64_t size, char *filename, size_t fn_length, md5_t *digest );
+void md5_16k( diskfile_t *df );
 
 void sort(md5_t arr[], int beg, int end);
 
@@ -162,6 +157,10 @@ void create_recovery_files( spar_t *h )
             tx += copies_crit * h->n_critical_packets;    // t*x += t*1
             while (tx >= blocks_current_file)             // while t*x > t*(n/t)
             {
+                // Calculate the critical packets if they haven't been yet
+                if ( h->critical_packets == NULL )
+                    generate_critical_packets( h );
+
                 pkt_header_t *packet = h->critical_packets[crit_i];
                 fwrite( packet, 1, packet->length, fp );
 
@@ -357,8 +356,9 @@ int spar_parse( spar_t *h, int argc, char **argv )
     if ( h->n_threads < 1 )
         h->n_threads = 1;
 
-    unsigned char initial_recid[] = {0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42};
-    SET_MD5(h->recovery_id, initial_recid);
+    unsigned char md5_filler[] = {0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42,0x42};
+
+    SET_MD5(h->recovery_id, md5_filler); // Just a filler
 
     h->input_files = malloc( h->n_input_files * sizeof(diskfile_t) );
 
@@ -374,6 +374,10 @@ int spar_parse( spar_t *h, int argc, char **argv )
         df->filesize = FILESIZE( df->filename ) - df->offset;
         df->n_slices = (df->filesize + h->blocksize - 1) / h->blocksize;
 
+        md5_16k( df );
+        SET_MD5(df->hash_full, md5_filler); // Just a filler
+        df->checksums = malloc( df->n_slices * sizeof(checksum_t) );
+
         h->n_input_slices += df->n_slices;
         h->largest_filesize = MAX(h->largest_filesize, df->filesize);
     }
@@ -385,6 +389,7 @@ int spar_parse( spar_t *h, int argc, char **argv )
     h->max_blocks_per_file = (h->largest_filesize + h->blocksize - 1) / h->blocksize;
 
     h->n_critical_packets = h->n_input_files * 2 + 1;  // n*(fdesc+ifsc) + main
+    h->critical_packets = NULL;
 
     h->blocks_per_thread = (h->n_recovery_blocks + h->n_threads - 1) / h->n_threads;
 
@@ -407,6 +412,18 @@ int spar_parse( spar_t *h, int argc, char **argv )
     return 0;
 }
 
+void set_recovery_id( spar_t *h )
+{
+    // Run through the critical packets once, to calculate the recovery id
+    generate_critical_packets( h );
+
+    // Delete these critical packets again, because most of their data is bogus
+    for ( int i = 0; i < h->n_critical_packets; i++ )
+        free( h->critical_packets[i] );
+    free( h->critical_packets );
+    h->critical_packets = NULL;
+}
+
 void generate_critical_packets( spar_t *h )
 {
     md5_t *fids = malloc( h->n_input_files * sizeof(md5_t) );
@@ -415,11 +432,11 @@ void generate_critical_packets( spar_t *h )
     int crit_i = 0;  // Index of current critical packet
 
     //****** FILE DESCRIPTION PACKETS ******//
-    // TODO: Calculate md5 as we're going along, as with IFSC. 16k might be skippible as it's fast.
 
     for ( int i = 0; i < h->n_input_files; i++ )
     {
-        char *filename_in = h->input_files[i].filename;
+        diskfile_t *df = &h->input_files[i];
+        char *filename_in = df->filename;
 
         // Allocate a file descriptor packet
         size_t fn_length = (strlen(filename_in) + 3) & ~3;
@@ -439,12 +456,9 @@ void generate_critical_packets( spar_t *h )
         memcpy( filename, filename_in, strlen(filename_in) );
 
         // Write the packet info
-        fdesc->flength   = FILESIZE( filename_in );
-        FILE *fp = fopen( filename_in, "rb" );
-        md5_file( fp, &fdesc->hash_full );
-        fseek( fp, 0, 0 );
-        md5_16k( fp, &fdesc->hash_16k );
-        fclose( fp );
+        fdesc->flength = df->filesize;
+        SET_MD5(fdesc->hash_full, df->hash_full);
+        SET_MD5(fdesc->hash_16k,  df->hash_16k);
 
         // strlen(filename_in) instead of the entire field, to match par2cmdline
         md5_memory( (void*)&fdesc->hash_16k, sizeof(md5_t)+sizeof(uint64_t)+strlen(filename_in), &fdesc->fid );
@@ -456,12 +470,6 @@ void generate_critical_packets( spar_t *h )
         md5_packet( header );
 
         //****** INPUT FILE SLICE CHECKSUM PACKETS ******//
-        // TODO: md5 checksum of a certain slice as soon as possible
-        // after load into memory check if md5 of slice is already calculated
-        // Might help to slow down fastest thread
-
-        // Allocate buffer
-        char *slice = malloc( h->blocksize );
 
         packet_length = sizeof(pkt_ifsc_t) + h->input_files[i].n_slices * sizeof(checksum_t);
         h->critical_packets[crit_i] = malloc( packet_length );
@@ -480,22 +488,12 @@ void generate_critical_packets( spar_t *h )
 
         // Calculate the checksums of all the slices
         for( int s = 0; s < h->input_files[i].n_slices; s++ )
-        {
-            read_to_buf( &h->input_files[i], s * h->blocksize, h->blocksize, slice );
-            md5_memory( slice, h->blocksize, &chksm[s].md5 );
-            chksm[s].crc = 0;
-            crc32( slice, h->blocksize, &chksm[s].crc );
-        }
+            memcpy( &chksm[s], &df->checksums[s], sizeof(checksum_t) );
 
         md5_packet( header );
-
-        free( slice );
     }
 
     //****** MAIN PACKET ******//
-    // TODO: md5 checksum of first 16k as soon as possible and save it in memory so we can do par2 on the fly
-    // TODO: file size should be known beforehand
-    // TODO: file name should be known beforehand
 
     // Allocate the main packet
     size_t packet_length = sizeof(pkt_main_t) + h->n_input_files * sizeof(md5_t);
@@ -510,7 +508,7 @@ void generate_critical_packets( spar_t *h )
 
     // Fill in the main packet
     main_packet->slice_size = h->blocksize;
-    main_packet->n_files    = h->n_input_files; //TODO: Check with large file if definitely not recovery files?
+    main_packet->n_files    = h->n_input_files;
     sort( fids, 0, main_packet->n_files );
     memcpy( main_packet + 1, fids, h->n_input_files * sizeof(md5_t) );
 
@@ -518,13 +516,6 @@ void generate_critical_packets( spar_t *h )
 
     // Recovery ID as generated from the BODY of the main packet
     md5_memory( (void*)(header+1), packet_length - sizeof(pkt_header_t), &h->recovery_id );
-
-    // Write the recovery_id to the critical packets
-    for( int i = 0; i < h->n_critical_packets; i++ )
-    {
-        SET_MD5(h->critical_packets[i]->recovery_id, h->recovery_id);
-        md5_packet( h->critical_packets[i] );
-    }
 
     free( fids );
 }
@@ -544,7 +535,7 @@ int main( int argc, char **argv )
         exit(1);
     }
 
-    generate_critical_packets( &h );
+    set_recovery_id( &h );
 
     create_recovery_files( &h );
 
@@ -556,7 +547,10 @@ int main( int argc, char **argv )
     free( h.basename );
 
     for( int i = 0; i < h.n_input_files; i++ )
+    {
         free( h.input_files[i].filename );
+        free( h.input_files[i].checksums );
+    }
 
     free( h.input_files );
 
@@ -565,64 +559,22 @@ int main( int argc, char **argv )
     free( h.critical_packets );
 }
 
-void md5_memory( char *buf, size_t length, md5_t *digest )
-{
-    context_md5_t *ctx = malloc( sizeof(context_md5_t) );
-    MD5Init( ctx );
-    MD5Update( ctx, (unsigned char*) buf, length );
-    MD5Final( (unsigned char*)digest, ctx );
-    free( ctx );
-}
 
 void md5_packet( pkt_header_t *header )
 {
     md5_memory( (void*)(&header->recovery_id), header->length - 32, &(header->packet_md5) );
 }
 
-void md5_file( FILE *fp, md5_t *digest )
-{
-    context_md5_t *ctx = malloc( sizeof(context_md5_t) );
-    char buf[1L << 15];
-
-    MD5Init( ctx );
-    while( !feof( fp ) && !ferror( fp ) )
-        MD5Update( ctx, (unsigned char*)buf, fread( buf, 1, sizeof(buf), fp ) );
-    MD5Final( (unsigned char*)digest, ctx );
-
-    free( ctx );
-}
-
-void md5_16k( FILE *fp, md5_t *digest )
+void md5_16k( diskfile_t *df )
 {
     context_md5_t *ctx = malloc( sizeof(context_md5_t) );
     char buf[1L << 14];
 
+    size_t read = read_to_buf( df, 0, 1<<14, buf );
     MD5Init( ctx );
-    MD5Update( ctx, (unsigned char*)buf, fread( buf, 1, sizeof(buf), fp ) );
-    MD5Final( (unsigned char*)digest, ctx );
+    MD5Update( ctx, (unsigned char*)buf, read );
+    MD5Final( (unsigned char*)df->hash_16k, ctx );
 
-    free( ctx );
-}
-
-void md5_fid( md5_t *hash_16k, uint64_t size, char *filename, size_t fn_length, md5_t *digest )
-{
-    context_md5_t *ctx = malloc( sizeof(context_md5_t) );
-    size_t bufsize = sizeof( md5_t ) + sizeof( uint64_t ) + fn_length;
-    char *buf = malloc( bufsize );
-    char *temp = buf;
-
-    // Copy into the buffer
-    memcpy( temp, hash_16k, sizeof(md5_t) );
-    temp += sizeof(md5_t);
-    memcpy( temp, &size, sizeof(uint64_t) );
-    temp += sizeof(uint64_t);
-    memcpy( temp, filename, fn_length );
-
-    MD5Init( ctx );
-    MD5Update( ctx, (unsigned char*)buf, bufsize );
-    MD5Final( (unsigned char*)digest, ctx );
-
-    free( buf );
     free( ctx );
 }
 

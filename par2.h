@@ -47,17 +47,9 @@ char PAR2_MAGIC[]   = {'P','A','R','2','\0','P','K','T'};
 
 char PAR2_CREATOR[] = "Created by Simple Par (spar2) revision \"" SPAR_VERSION "\"\0";
 
-typedef unsigned char md5_t[16];
 
-typedef uint32_t crc32_t;
 
 #pragma pack(1)
-
-typedef struct {
-    md5_t md5;
-    crc32_t crc;
-} checksum_t;
-
 
 // Packet Header
 typedef struct {

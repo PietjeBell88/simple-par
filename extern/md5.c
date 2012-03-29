@@ -41,6 +41,16 @@ void byteReverse(unsigned char *buf, unsigned longs)
 #endif  // ifndef WORDS_BIGENDIAN
 
 
+/* Often used set of instructions */
+void md5_memory( void *buf, size_t length, void *digest )
+{
+    context_md5_t *ctx = malloc( sizeof(context_md5_t) );
+    MD5Init( ctx );
+    MD5Update( ctx, (unsigned char*) buf, length );
+    MD5Final( (unsigned char*)digest, ctx );
+    free( ctx );
+}
+
 
 
 

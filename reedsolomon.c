@@ -17,6 +17,8 @@
 #include "reedsolomon.h"
 #include "diskfile.h"
 
+#include "extern/md5.h"
+#include "extern/crc32.h"
 
 // Log/antilog tables
 uint16_t gflog[NW], gfilog[NW], vander[(NW/2 + 1)];
@@ -154,12 +156,31 @@ void rs_process( diskfile_t *files, int n_files, int block_start, int block_end,
     // Allocate read buffer
     uint16_t *slice = memalign( 16, (blocksize + 15) & ~15 );
 
+    // Calculate the md5 of the input files as we're going along (16kB is already calculated when opening the files)
+    context_md5_t *ctx_full = malloc( sizeof(context_md5_t) );
+
     int col = 1;
 
     for ( int i = 0; i < n_files; i++ )
+    {
+        MD5Init( ctx_full );
+
         for ( int j = 0; j < files[i].n_slices; j++ )
         {
-            read_to_buf( &files[i], j*blocksize, blocksize, (void*)slice );
+            size_t read = read_to_buf( &files[i], j*blocksize, blocksize, (void*)slice );
+
+            if ( block_start == 0 )
+            {
+                // Update the file's full hash with the data in the slice
+                MD5Update( ctx_full, (unsigned char*)slice, read );
+
+                // Calculate the checksums for this particular slice; include trailing zeros
+                checksum_t *chksm = &files[i].checksums[j];
+                md5_memory( slice, blocksize, chksm->md5 );
+                chksm->crc = 0;
+                crc32( slice, blocksize, &chksm->crc );
+
+            }
             for ( int d = 0, b = block_start; b <= block_end; d++, b++ )
             {
                 uint16_t current = gfpow( vander[col], b );
@@ -174,6 +195,9 @@ void rs_process( diskfile_t *files, int n_files, int block_start, int block_end,
 
             col += 1;
         }
+        MD5Final( (unsigned char*)files[i].hash_full, ctx_full );
+    }
 
+    free( ctx_full );
     free( slice );
 }
