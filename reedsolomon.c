@@ -1,23 +1,31 @@
 #define NW (1 << 16)
 #define PRIM_POLY 0x1100B;
 
+#define HAVE_SSE2 1
+
+#if HAVE_SSE2
+#include <emmintrin.h>
+#endif
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <malloc.h>
 
+#include "common.h"
 #include "reedsolomon.h"
 #include "diskfile.h"
+
 
 // Log/antilog tables
 uint16_t gflog[NW], gfilog[NW], vander[(NW/2 + 1)];
 
 // Lookup tables
-uint16_t ll[256][256];
-uint16_t lh[256][256];
-uint16_t hl[256][256];
-uint16_t hh[256][256];
-
+ALIGNED_16( uint16_t ll[256][256] );
+ALIGNED_16( uint16_t lh[256][256] );
+ALIGNED_16( uint16_t hl[256][256] );
+ALIGNED_16( uint16_t hh[256][256] );
 
 uint16_t gfmult( uint16_t a, uint16_t b)
 {
@@ -76,14 +84,15 @@ void setup_tables()
         }
 }
 
-void lookup_multiply( uint16_t f, uint16_t *slice, uint16_t *dest, int length )
+
+void lookup_multiply( uint16_t f, uint16_t * __restrict slice, uint16_t * __restrict dest, size_t length )
 {
     uint16_t fl = (f >> 0) & 0xff;
     uint16_t fh = (f >> 8);
 
     // Combine the four multiplication tables into two
-    uint16_t L[256];
-    uint16_t H[256];
+    ALIGNED_16( uint16_t L[256] );
+    ALIGNED_16( uint16_t H[256] );
 
     for ( int i = 0; i < 256; i++ )
     {
@@ -91,6 +100,38 @@ void lookup_multiply( uint16_t f, uint16_t *slice, uint16_t *dest, int length )
         H[i] = lh[fl][i] ^ hh[fh][i];
     }
 
+#if HAVE_SSE2
+#define LOAD_SL_SH(a,b,n) {\
+        eax = _mm_extract_epi16( s, n ); \
+        sl = eax & 0xff; \
+        sh = (eax>>8) & 0xff; \
+        a = _mm_insert_epi16( a, L[sl], n); \
+        b = _mm_insert_epi16( b, H[sh], n); \
+}
+
+    for ( int i = 0; i < (length>>1); i+=8 ) // 8 shorts per iteration
+    {
+        __m128i s = _mm_load_si128( (__m128i const*)&slice[i] );
+        __m128i d = _mm_load_si128( (__m128i const*)&dest[i] );
+
+        uint32_t eax, sl, sh;
+        __m128i xmm0, xmm1;
+
+        LOAD_SL_SH(xmm0, xmm1, 0);
+        LOAD_SL_SH(xmm0, xmm1, 1);
+        LOAD_SL_SH(xmm0, xmm1, 2);
+        LOAD_SL_SH(xmm0, xmm1, 3);
+        LOAD_SL_SH(xmm0, xmm1, 4);
+        LOAD_SL_SH(xmm0, xmm1, 5);
+        LOAD_SL_SH(xmm0, xmm1, 6);
+        LOAD_SL_SH(xmm0, xmm1, 7);
+
+        xmm0 = _mm_xor_si128( xmm0, xmm1 );                // xmm0 = L[i..i+7] ^ H[i..i+7]
+        d    = _mm_xor_si128( d, xmm0 );                   // d ^= xmm0
+
+        _mm_store_si128( (__m128i *)&dest[i], d );
+    }
+#else
     for ( int i = 0; i < (length>>1); i++ )
     {
         uint16_t s = slice[i];
@@ -100,6 +141,7 @@ void lookup_multiply( uint16_t f, uint16_t *slice, uint16_t *dest, int length )
 
         dest[i] ^= L[sl] ^ H[sh];
     }
+#endif
 }
 
 void rs_process( diskfile_t *files, int n_files, int block_start, int block_end, size_t blocksize, uint16_t **dest, progress_t *progress )
@@ -110,7 +152,7 @@ void rs_process( diskfile_t *files, int n_files, int block_start, int block_end,
         memset( dest[d], 0, blocksize );
 
     // Allocate read buffer
-    uint16_t *slice = malloc( blocksize );
+    uint16_t *slice = memalign( 16, (blocksize + 15) & ~15 );
 
     int col = 1;
 

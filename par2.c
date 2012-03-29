@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <malloc.h>
 
 #include "par2.h"
 #include "diskfile.h"
@@ -69,7 +70,7 @@ void create_recovery_files( spar_t *h )
     uint16_t **recv_data = malloc( recv_blocks_mem * sizeof(uint16_t*) );
 
     for ( int i = 0; i < recv_blocks_mem; i++ )
-        recv_data[i] = malloc( h->blocksize );
+        recv_data[i] = memalign( 16, (h->blocksize + 15) & ~15 );
 
     // Threads
     thread_t *threads = malloc( h->n_threads * sizeof(thread_t) );

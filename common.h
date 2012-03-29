@@ -13,6 +13,9 @@
     a > b ? a : b; \
 })
 
+// Define macro for aligning data
+#define ALIGNED_16(X) X __attribute__((aligned(16)))
+
 typedef struct
 {
     char format[100];
