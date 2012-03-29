@@ -1,5 +1,3 @@
-// turn the weird PACKET_TYPE stuff back into normal strings.. since we have a macro anyway
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>

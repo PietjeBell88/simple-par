@@ -36,19 +36,19 @@ for ( int _i = 0; _i < (n); _i++ ) \
 })
 
 
+/********** PACKET STRINGS **********/
+char PACKET_MAIN[]     = "PAR 2.0\0Main\0\0\0\0";
+char PACKET_FILEDESC[] = "PAR 2.0\0FileDesc";
+char PACKET_IFSC[]     = "PAR 2.0\0IFSC\0\0\0\0";
+char PACKET_RECVSLIC[] = "PAR 2.0\0RecvSlic";
+char PACKET_CREATOR[]  = "PAR 2.0\0Creator\0";
 
-char PACKET_MAIN[]     = {'P','A','R',' ','2','.','0','\0','M','a','i','n','\0','\0','\0','\0'};
-char PACKET_FILEDESC[] = {'P','A','R',' ','2','.','0','\0','F','i','l','e','D','e','s','c'};
-char PACKET_IFSC[]     = {'P','A','R',' ','2','.','0','\0','I','F','S','C','\0','\0','\0','\0'};
-char PACKET_RECVSLIC[] = {'P','A','R',' ','2','.','0','\0','R','e','c','v','S','l','i','c'};
-char PACKET_CREATOR[]  = {'P','A','R',' ','2','.','0','\0','C','r','e','a','t','o','r','\0'};
-
-char PAR2_MAGIC[]   = {'P','A','R','2','\0','P','K','T'};
+char PAR2_MAGIC[]   = "PAR2\0PKT";
 
 char PAR2_CREATOR[] = "Created by Simple Par (spar2) revision \"" SPAR_VERSION "\"\0";
 
 
-
+/************* PACKETS **************/
 #pragma pack(1)
 
 // Packet Header
@@ -106,6 +106,7 @@ typedef struct
 
 #pragma pack()
 
+/************* MAIN STRUCT **************/
 typedef struct
 {
     // Input Files
