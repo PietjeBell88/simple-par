@@ -99,12 +99,23 @@ void create_recovery_files( spar_t *h )
     pkt_header_t *header;
 
     // Generate the creator packet
-    int creator_string_length = snprintf( 0, 0, "%s", PAR2_CREATOR );
+    int creator_string_length;
+    if ( h->mimic )
+        creator_string_length = snprintf( 0, 0, "%s", PAR2_PAR2CMDLINE );
+    else
+        creator_string_length = snprintf( 0, 0, "%s", PAR2_CREATOR );
+
     size_t packet_length = sizeof(pkt_creator_t) + ((creator_string_length + 3) & ~3);
     pkt_creator_t *creator = calloc( packet_length, 1 );
     header = &creator->header;
+
     SET_HEADER(header, h->recovery_id, PACKET_CREATOR, packet_length);
-    SET_CREATOR((char*)(creator+1), creator_string_length);
+
+    if ( h->mimic )
+        SET_CREATOR((char*)(creator+1), PAR2_PAR2CMDLINE, creator_string_length);
+    else
+        SET_CREATOR((char*)(creator+1), PAR2_CREATOR, creator_string_length);
+
     md5_packet( header );
 
     // Allocate the packets and data block contiguously
@@ -235,7 +246,7 @@ void create_recovery_files( spar_t *h )
     printf( "\n" );
 }
 
-static char short_options[] = "hm:r:s:t:v";
+static char short_options[] = "hm:r:s:t:vz";
 static struct option long_options[] =
 {
     { "help",              no_argument, NULL, 'h' },
@@ -244,6 +255,7 @@ static struct option long_options[] =
     { "redundancy",  required_argument, NULL, 'r' },
     { "blocksize",   required_argument, NULL, 's' },
     { "threads",     required_argument, NULL, 't' },
+    { "mimic",             no_argument, NULL, 'z' },
     {0, 0, 0, 0}
 };
 
@@ -256,6 +268,7 @@ int spar_parse( spar_t *h, int argc, char **argv )
     h->redundancy = 5;
     h->blocksize  = 640000;
     h->n_threads  = 1;
+    h->mimic      = 0;
 
     // First check for help
     if ( argc == 1 )
@@ -317,6 +330,9 @@ int spar_parse( spar_t *h, int argc, char **argv )
                 break;
             case 't':
                 h->n_threads = atoi( optarg );
+                break;
+            case 'z':
+                h->mimic = 1;
                 break;
             default:
                 printf( "Error: getopt returned character code 0%o = %c\n", c, c );

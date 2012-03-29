@@ -30,9 +30,9 @@ SET_MD5(hdr->recovery_id, recid); \
 hdr->length = plength; \
 })
 
-#define SET_CREATOR(a,n) ({ \
+#define SET_CREATOR(a,s,n) ({ \
 for ( int _i = 0; _i < (n); _i++ ) \
-    (a)[_i] = PAR2_CREATOR[_i]; \
+    (a)[_i] = s[_i]; \
 })
 
 
@@ -47,6 +47,7 @@ char PAR2_MAGIC[]   = "PAR2\0PKT";
 
 char PAR2_CREATOR[] = "Created by Simple Par (spar2) revision \"" SPAR_VERSION "\"\0";
 
+char PAR2_PAR2CMDLINE[] = "Created by par2cmdline version 0.4.\0";
 
 /************* PACKETS **************/
 #pragma pack(1)
@@ -127,6 +128,7 @@ typedef struct
     size_t memory_max;
 
     // Par2 File Output
+    int mimic; // Mimic par2cmdline's creator packet?
     char par2_fnformat[300];
     char *basename;
     int n_recovery_files;
