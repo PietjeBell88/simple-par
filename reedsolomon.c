@@ -13,6 +13,10 @@
 #include "extern/md5.h"
 #include "extern/crc32.h"
 
+#if HAVE_MMX
+void spar_do_block_mmx( uint32_t *table, uint16_t *src, int bsize, uint16_t *dst );
+#endif
+
 // Log/antilog tables
 uint16_t gflog[NW], gfilog[NW], vander[(NW/2 + 1)];
 
@@ -94,6 +98,9 @@ void lookup_multiply( uint16_t f, uint16_t * __restrict slice, uint16_t * __rest
         LH[i+256] = lh[fl][i] ^ hh[fh][i];
     }
 
+#if HAVE_MMX
+    spar_do_block_mmx( &LH[0], slice, length, dest );
+#else
     for ( int i = 0; i < (length>>1); i++ )
     {
         uint16_t s = slice[i];
@@ -103,6 +110,7 @@ void lookup_multiply( uint16_t f, uint16_t * __restrict slice, uint16_t * __rest
 
         dest[i] ^= LH[sl] ^ LH[sh+256];
     }
+#endif
 }
 
 void rs_process( diskfile_t *files, int n_files, int block_start, int block_end, size_t blocksize, uint16_t **dest, progress_t *progress )
