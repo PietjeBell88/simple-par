@@ -17,6 +17,29 @@ OBJS =
 
 CONFIG := $(shell cat config.h)
 
+# MMX/SSE optims
+ifneq ($(AS),)
+ASMSRC = x86/doblock-a.asm
+
+ifeq ($(ARCH),X86)
+ARCH_X86 = yes
+ASFLAGS += -DARCH_X86_64=0
+endif
+
+ifeq ($(ARCH),X86_64)
+ARCH_X86 = yes
+ASFLAGS += -DARCH_X86_64=1
+endif
+
+ifdef ARCH_X86
+ASFLAGS += -I./x86/
+OBJASM  = $(ASMSRC:%.asm=%.o)
+$(OBJASM): x86/x86inc.asm
+endif
+endif
+
+
+
 ifneq ($(HAVE_GETOPT_LONG),1)
 SRCCLI += extras/getopt.c
 endif
@@ -30,10 +53,18 @@ ifneq ($(EXE),)
 spar2: spar2$(EXE)
 endif
 
-spar2$(EXE): .depend $(OBJS)
-	$(LD)$@ $(OBJS) $(LDFLAGS)
+spar2$(EXE): .depend $(OBJS) $(OBJASM)
+	$(LD)$@ $(OBJS) $(OBJASM) $(LDFLAGS)
 
-$(OBJS): .depend
+$(OBJS) $(OBJASM): .depend
+
+%.o: %.asm
+	$(AS) $(ASFLAGS) -o $@ $<
+	-@ $(if $(STRIP), $(STRIP) -x $@) # delete local/anonymous symbols, so they don't show up in oprofile
+
+%.o: %.S
+	$(AS) $(ASFLAGS) -o $@ $<
+	-@ $(if $(STRIP), $(STRIP) -x $@) # delete local/anonymous symbols, so they don't show up in oprofile
 
 %.o: %.rc par2.h
 	$(RC)$@ $<
