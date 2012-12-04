@@ -1,7 +1,10 @@
 #include <stdio.h>
-#include <pthread.h>
 
 #include "common.h"
+
+#if HAVE_MALLOC_H
+#include <malloc.h>
+#endif
 
 void progress_print( progress_t *progress )
 {
@@ -44,9 +47,41 @@ size_t FILESIZE(char *fname)
     return size;
 }
 
-char* strdup( const char * s )
+char* strdup2( const char * s )
 {
     size_t len = 1 + strlen(s);
     char *p = malloc( len );
     return p ? memcpy( p, s, len ) : NULL;
+}
+
+void *spar2_malloc( int i_size )
+{
+    uint8_t *align_buf = NULL;
+#if SYS_MACOSX || (SYS_WINDOWS && ARCH_X86_64)
+    /* Mac OS X and Win x64 always returns 16 byte aligned memory */
+    align_buf = malloc( i_size );
+#elif HAVE_MALLOC_H
+    align_buf = memalign( 16, i_size );
+#else
+    uint8_t *buf = malloc( i_size + 15 + sizeof(void **) );
+    if( buf )
+    {
+        align_buf = buf + 15 + sizeof(void **);
+        align_buf -= (intptr_t) align_buf & 15;
+        *( (void **) ( align_buf - sizeof(void **) ) ) = buf;
+    }
+#endif
+    return align_buf;
+}
+
+void spar2_free( void *p )
+{
+    if( p )
+    {
+#if HAVE_MALLOC_H || SYS_MACOSX || (SYS_WINDOWS && ARCH_X86_64)
+        free( p );
+#else
+        free( *( ( ( void **) p ) - 1 ) );
+#endif
+    }
 }

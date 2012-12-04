@@ -5,7 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <pthread.h>
+
+#include "osdep.h"
 
 #define MIN(a,b) ({ \
     a > b ? b : a; \
@@ -14,9 +15,6 @@
 #define MAX(a,b) ({ \
     a > b ? a : b; \
 })
-
-// Define macro for aligning data
-#define ALIGNED_16(X) X __attribute__((aligned(16)))
 
 typedef unsigned char md5_t[16];
 
@@ -51,6 +49,10 @@ void progress_delete( progress_t *progress );
 
 size_t FILESIZE(char *fname);
 
-char* strdup( const char * s );
+char* strdup2( const char * s );
+
+void *spar2_malloc( int );
+
+void  spar2_free( void * );
 
 #endif
