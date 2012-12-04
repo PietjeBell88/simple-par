@@ -134,7 +134,7 @@ void create_recovery_files( spar_t *h )
 
         // How many copies of each critical packet
         int copies_crit = 0;
-        for ( int t = blocks_current_file; t > 0; t >>= 1)
+        for ( int z = blocks_current_file; z > 0; z >>= 1)
             copies_crit++;
 
         // Open the file for writing
