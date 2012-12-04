@@ -113,7 +113,7 @@ void rs_process( diskfile_t *files, int n_files, int block_start, int block_end,
         memset( dest[d], 0, blocksize );
 
     // Allocate read buffer
-    uint16_t *slice = memalign( 16, (blocksize + 15) & ~15 );
+    uint16_t *slice = spar2_malloc( (blocksize + 15) & ~15 );
 
     // Calculate the md5 of the input files as we're going along (16kB is already calculated when opening the files)
     context_md5_t *ctx_full = malloc( sizeof(context_md5_t) );
@@ -158,5 +158,5 @@ void rs_process( diskfile_t *files, int n_files, int block_start, int block_end,
     }
 
     free( ctx_full );
-    free( slice );
+    spar2_free( slice );
 }
