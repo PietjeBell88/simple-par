@@ -1,16 +1,9 @@
 #define NW (1 << 16)
 #define PRIM_POLY 0x1100B;
 
-#define HAVE_SSE2 1
-
-#if HAVE_SSE2
-#include <emmintrin.h>
-#endif
-
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
 #include <malloc.h>
 
 #include "common.h"
@@ -92,48 +85,15 @@ void lookup_multiply( uint16_t f, uint16_t * __restrict slice, uint16_t * __rest
     uint16_t fl = (f >> 0) & 0xff;
     uint16_t fh = (f >> 8);
 
-    // Combine the four multiplication tables into two
-    ALIGNED_16( uint16_t L[256] );
-    ALIGNED_16( uint16_t H[256] );
+    // Combine the four multiplication tables into one
+    ALIGNED_16( uint32_t LH[512] );
 
     for ( int i = 0; i < 256; i++ )
     {
-        L[i] = ll[fl][i] ^ hl[fh][i];
-        H[i] = lh[fl][i] ^ hh[fh][i];
+        LH[i]     = ll[fl][i] ^ hl[fh][i];
+        LH[i+256] = lh[fl][i] ^ hh[fh][i];
     }
 
-#if HAVE_SSE2
-#define LOAD_SL_SH(a,b,n) {\
-        eax = _mm_extract_epi16( s, n ); \
-        sl = eax & 0xff; \
-        sh = (eax>>8) & 0xff; \
-        a = _mm_insert_epi16( a, L[sl], n); \
-        b = _mm_insert_epi16( b, H[sh], n); \
-}
-
-    for ( int i = 0; i < (length>>1); i+=8 ) // 8 shorts per iteration
-    {
-        __m128i s = _mm_load_si128( (__m128i const*)&slice[i] );
-        __m128i d = _mm_load_si128( (__m128i const*)&dest[i] );
-
-        uint32_t eax, sl, sh;
-        __m128i xmm0, xmm1;
-
-        LOAD_SL_SH(xmm0, xmm1, 0);
-        LOAD_SL_SH(xmm0, xmm1, 1);
-        LOAD_SL_SH(xmm0, xmm1, 2);
-        LOAD_SL_SH(xmm0, xmm1, 3);
-        LOAD_SL_SH(xmm0, xmm1, 4);
-        LOAD_SL_SH(xmm0, xmm1, 5);
-        LOAD_SL_SH(xmm0, xmm1, 6);
-        LOAD_SL_SH(xmm0, xmm1, 7);
-
-        xmm0 = _mm_xor_si128( xmm0, xmm1 );                // xmm0 = L[i..i+7] ^ H[i..i+7]
-        d    = _mm_xor_si128( d, xmm0 );                   // d ^= xmm0
-
-        _mm_store_si128( (__m128i *)&dest[i], d );
-    }
-#else
     for ( int i = 0; i < (length>>1); i++ )
     {
         uint16_t s = slice[i];
@@ -141,9 +101,8 @@ void lookup_multiply( uint16_t f, uint16_t * __restrict slice, uint16_t * __rest
         uint16_t sl = (s >> 0) & 0xff;
         uint16_t sh = (s >> 8);
 
-        dest[i] ^= L[sl] ^ H[sh];
+        dest[i] ^= LH[sl] ^ LH[sh+256];
     }
-#endif
 }
 
 void rs_process( diskfile_t *files, int n_files, int block_start, int block_end, size_t blocksize, uint16_t **dest, progress_t *progress )
