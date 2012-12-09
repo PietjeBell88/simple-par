@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
+#include <pthread.h>
 
 #include "par2.h"
 #include "diskfile.h"
@@ -48,8 +49,109 @@ static void help( spar_t *h )
     printf( "of the source file.\n" );
 }
 
-void create_recovery_files( spar_t *h )
+#define PKT_YIELD(x) ({ \
+    pthread_mutex_lock(h->mut); \
+    while( h->packet_buffer != NULL ) \
+        pthread_cond_wait( h->cond_empty, h->mut ); \
+    h->packet_buffer = x; \
+    pthread_cond_signal( h->cond_full ); \
+    pthread_mutex_unlock( h->mut ); \
+})
+
+pkt_header_t * pkt_get( spar_t *h )
 {
+    pkt_header_t *ret;
+
+    pthread_mutex_lock( h->mut );
+    while( h->packet_buffer == NULL )
+        pthread_cond_wait( h->cond_full, h->mut );
+    ret = h->packet_buffer;
+    h->packet_buffer = NULL;
+    pthread_cond_signal( h->cond_empty );
+    pthread_mutex_unlock(h->mut);
+
+    return ret;
+}
+
+void par2_file_writer( spar_t *h )
+{
+    FILE *fp;
+
+    for ( int filenum = 0; filenum < h->n_recovery_files; filenum++ )
+    {
+        // Open the file for writing
+        //printf( "Opening file: %s\n", h->recovery_filenames[filenum] );
+        fp = fopen( h->recovery_filenames[filenum], "wb" );
+
+        for( int i = 0; i < h->packets_recvfile[filenum]; i++ )
+        {
+            pkt_header_t *header = pkt_get( h );
+            fwrite( header, 1, header->length, fp );
+            free( header );
+        }
+
+        fclose( fp );
+    }
+}
+
+void filenames_and_packet_numbers( spar_t *h )
+{
+    // Exponential scheme
+    int blocks_current_file = 1;
+    int blocknum = 0;
+
+    // How many recovery files will we create?
+    uint32_t whole = h->n_recovery_blocks / h->max_blocks_per_file;
+    whole = (whole >= 1) ? whole-1 : 0;
+
+    h->n_recovery_files = whole;
+    int extra = h->n_recovery_blocks - whole * h->max_blocks_per_file;
+
+    for ( int b = extra; b > 0; b >>= 1 )
+        h->n_recovery_files++;
+
+    // Allocate an array for the amount of packets in each recovery file
+    h->packets_recvfile = malloc( h->n_recovery_files * sizeof(int) );
+
+    // Allocate the recovery filenames
+    h->recovery_filenames = malloc( h->n_recovery_files * sizeof(char*) );
+    size_t fnlength = strlen(h->basename) + strlen(h->par2_fnformat) + 20;
+    for ( int i = 0; i < h->n_recovery_files; i++ )
+        h->recovery_filenames[i] = malloc( fnlength );
+
+    for ( int filenum = 0; filenum < h->n_recovery_files; filenum++ )
+    {
+        // Exponential at the bottom, full at the top
+        if ( extra > 0 )
+            blocks_current_file = MIN(blocks_current_file, extra);
+        else
+            blocks_current_file = h->max_blocks_per_file;
+
+        h->packets_recvfile[filenum] = blocks_current_file;
+
+        // How many copies of each critical packet
+        int copies_crit = 0;
+        for ( int z = blocks_current_file; z > 0; z >>= 1)
+            copies_crit++;
+
+        // Total amount of packets in a recovery file is: recovery packets + critical packets + a single creator packet
+        h->packets_recvfile[filenum] = h->packets_recvfile[filenum] + copies_crit * h->n_critical_packets + 1;
+
+        // Generate the filename for this recovery file
+        char *filename = h->recovery_filenames[filenum];
+        snprintf( filename, fnlength, h->par2_fnformat, h->basename, blocknum, blocks_current_file );
+
+        blocknum += blocks_current_file;
+        extra = extra - blocks_current_file;
+        blocks_current_file = blocks_current_file << 1;
+    }
+}
+
+
+void * create_recovery_files( void *arg )
+{
+    spar_t *h = (spar_t*)arg;
+
     // Progress of calculation and writing
     progress_t *progress = progress_init( h->n_recovery_blocks, h->n_input_slices );
 
@@ -88,12 +190,6 @@ void create_recovery_files( spar_t *h )
     for ( int b = extra; b > 0; b >>= 1 )
         h->n_recovery_files++;
 
-    // Allocate the recovery filenames
-    h->recovery_filenames = malloc( h->n_recovery_files * sizeof(char*) );
-    size_t fnlength = strlen(h->basename) + strlen(h->par2_fnformat) + 20;
-    for ( int i = 0; i < h->n_recovery_files; i++ )
-        h->recovery_filenames[i] = malloc( fnlength );
-
     // Useful alias
     pkt_header_t *header;
 
@@ -119,7 +215,7 @@ void create_recovery_files( spar_t *h )
 
     // Allocate the packets and data block contiguously
     packet_length = sizeof(pkt_recvslice_t) + h->blocksize;
-    pkt_recvslice_t *recvslice = malloc( packet_length );
+    pkt_recvslice_t *recvslice;
 
     int t = 0; // Thread index that has the next few blocks
 
@@ -136,15 +232,6 @@ void create_recovery_files( spar_t *h )
         for ( int z = blocks_current_file; z > 0; z >>= 1)
             copies_crit++;
 
-        // Open the file for writing
-        char *filename = h->recovery_filenames[filenum];
-        snprintf( filename, fnlength, h->par2_fnformat, h->basename, blocknum, blocks_current_file );
-        FILE *fp = fopen( filename, "wb" );
-
-        // Packet Header
-        header = &recvslice->header;
-        SET_HEADER(header, h->recovery_id, PACKET_RECVSLIC, packet_length);
-
         // Calculate the recovery slices
         for ( int i = 0, tx = 0, crit_i = 0; i < blocks_current_file; i++ )
         {
@@ -152,14 +239,21 @@ void create_recovery_files( spar_t *h )
             if ( blocknum == threads[t].block_start )
                 pthread_join( threads[t].thread, NULL );
 
+            // Allocate a packet
+            recvslice = malloc( packet_length );
+
+            // Packet Header
+            header = &recvslice->header;
+            SET_HEADER(header, h->recovery_id, PACKET_RECVSLIC, packet_length);
+
+            // Copy the recovery data to the packet
             recvslice->exponent = blocknum;
             int recv_index = blocknum - threads[t].block_start + t * h->blocks_per_thread;
             memcpy( (uint16_t*)(recvslice+1), recv_data[recv_index], h->blocksize );
 
             md5_packet( header );
 
-            // TODO: valgrind error? But WHY~?
-            fwrite( recvslice, 1, packet_length, fp );
+            PKT_YIELD( header );
 
             // Add some critical packets based on par2cmdline's algorithm
             tx += copies_crit * h->n_critical_packets;    // t*x += t*1
@@ -169,8 +263,14 @@ void create_recovery_files( spar_t *h )
                 if ( h->critical_packets == NULL )
                     generate_critical_packets( h );
 
-                pkt_header_t *packet = h->critical_packets[crit_i];
-                fwrite( packet, 1, packet->length, fp );
+                pkt_header_t *critpkt = h->critical_packets[crit_i];
+
+                // Allocate a new buffer and copy the packet data
+                pkt_header_t *packet = malloc( critpkt->length );
+                memcpy( packet, critpkt, critpkt->length );
+
+                // Yield the packet
+                PKT_YIELD( packet );
 
                 crit_i = (crit_i + 1) % h->n_critical_packets;
 
@@ -200,18 +300,18 @@ void create_recovery_files( spar_t *h )
 
         // Write the creator packet
         header = (pkt_header_t*)creator;
-        fwrite( header, 1, header->length, fp );
 
-        fclose( fp );
+        pkt_header_t *packet = malloc( header->length );
+        memcpy( packet, header, header->length );
+
+        PKT_YIELD( packet );
 
         extra = extra - blocks_current_file;
         blocks_current_file = blocks_current_file << 1;
     }
 
-    free( recvslice );
-
     // Write the empty .par2 with only the critical packets
-    fnlength = strlen(h->basename) + 6;
+    size_t fnlength = strlen(h->basename) + 6;
     char *filename = malloc( fnlength );
     snprintf( filename, fnlength, "%s.par2", h->basename );
 
@@ -243,6 +343,8 @@ void create_recovery_files( spar_t *h )
 
     // Print a newline so the process will stay on screen
     printf( "\n" );
+
+    return NULL;
 }
 
 static char short_options[] = "hm:r:s:t:vz";
@@ -533,6 +635,34 @@ void generate_critical_packets( spar_t *h )
     free( fids );
 }
 
+void spar2_init( spar_t *h )
+{
+    // Initialize the values
+    h->packet_buffer = NULL;
+
+    h->mut = malloc( sizeof(pthread_mutex_t) );
+    pthread_mutex_init( h->mut, NULL );
+
+    h->cond_full = malloc( sizeof(pthread_cond_t) );
+    pthread_cond_init( h->cond_full, NULL );
+
+    h->cond_empty = malloc( sizeof(pthread_cond_t) );
+    pthread_cond_init( h->cond_empty, NULL );
+}
+
+void spar2_finish( spar_t *h )
+{
+    pthread_mutex_destroy( h->mut );
+    free( h->mut );
+
+    pthread_cond_destroy( h->cond_full );
+    free( h->cond_full );
+
+    pthread_cond_destroy( h->cond_empty );
+    free( h->cond_empty );
+}
+
+
 int main( int argc, char **argv )
 {
     // blocksize, redundancy,
@@ -550,7 +680,19 @@ int main( int argc, char **argv )
 
     set_recovery_id( &h );
 
-    create_recovery_files( &h );
+    filenames_and_packet_numbers( &h );
+
+    spar2_init( &h );
+
+    pthread_t creatorthread;
+
+    pthread_create( &creatorthread, NULL, create_recovery_files, &h );
+
+    par2_file_writer( &h );
+
+    pthread_join( creatorthread, NULL );
+
+    spar2_finish( &h );
 
     //****** FREE MEMORY ******//
     for ( int i = 0; i < h.n_recovery_files; i++ )
@@ -570,6 +712,8 @@ int main( int argc, char **argv )
     for ( int i = 0; i < h.n_critical_packets; i++ )
         free( h.critical_packets[i] );
     free( h.critical_packets );
+
+    free( h.packets_recvfile );
 }
 
 

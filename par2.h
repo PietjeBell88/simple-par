@@ -133,9 +133,15 @@ typedef struct
     char *basename;
     int n_recovery_files;
     char **recovery_filenames;
+    int *packets_recvfile; // Number of packets (main, recv, ...) in each recovery file.
 
     int n_critical_packets;
     pkt_header_t **critical_packets;  // Array of pointers to the critical packets
+
+    // Thread communication
+    pkt_header_t *packet_buffer;
+    pthread_mutex_t *mut;
+    pthread_cond_t *cond_full, *cond_empty;
 } spar_t;
 
 typedef struct
