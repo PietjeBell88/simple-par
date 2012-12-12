@@ -107,6 +107,16 @@ typedef struct
 
 #pragma pack()
 
+typedef struct
+{
+    progress_t *progress;
+
+    int block_start;
+    int block_end;  // Inclusive
+    pthread_t thread;
+    uint16_t **recv_data;
+} thread_t;
+
 /************* MAIN STRUCT **************/
 typedef struct
 {
@@ -134,18 +144,21 @@ typedef struct
     int n_recovery_files;
     char **recovery_filenames;
 
+    int *recvfile_block_start;
+    int *recvfile_block_end;
+    int *packets_recvfile;
+
     int n_critical_packets;
     pkt_header_t **critical_packets;  // Array of pointers to the critical packets
+    pkt_creator_t *creator_packet;
+
+    // Threads
+    thread_t *threads;
 } spar_t;
 
-typedef struct
-{
-    spar_t *h;
-    int block_start;
-    int block_end;  // Inclusive
-    pthread_t thread;
-    uint16_t **recv_data;
-    progress_t *progress;
-} thread_t;
+/*** INTERFACE ***/
+pkt_header_t * spar2_recvslice_get( spar_t *h, int blocknum );
+
+pkt_header_t * spar2_get_packet( spar_t *h, int filenum, int packet_index );
 
 #endif

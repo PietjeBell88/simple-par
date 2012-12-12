@@ -34,6 +34,7 @@ progress_t *progress_init( int n_blocks, int n_slices )
 
 void progress_delete( progress_t *progress )
 {
+    printf( "\n" );
     pthread_mutex_destroy( progress->mut );
     free( progress->mut );
 }
