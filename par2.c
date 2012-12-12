@@ -265,7 +265,7 @@ int spar_parse( spar_t *h, int argc, char **argv )
 
     // Defaults
     h->memory_max = 0;
-    h->redundancy = 5;
+    h->redundancy = 5.f;
     h->blocksize  = 640000;
     h->n_threads  = 1;
     h->mimic      = 0;
@@ -323,7 +323,7 @@ int spar_parse( spar_t *h, int argc, char **argv )
                 }
                 break;
             case 'r':
-                h->redundancy = atoi( optarg );
+                h->redundancy = atof( optarg );
                 break;
             case 's':
                 h->blocksize = atoi( optarg );
@@ -396,8 +396,8 @@ int spar_parse( spar_t *h, int argc, char **argv )
         h->largest_filesize = MAX(h->largest_filesize, df->filesize);
     }
 
-    h->n_recovery_blocks = (h->n_input_slices * h->redundancy + 50) / 100;
-    if ( h->n_recovery_blocks == 0 && h->redundancy > 0 )
+    h->n_recovery_blocks = (uint16_t)(h->n_input_slices * h->redundancy + 50) / 100;
+    if ( h->n_recovery_blocks == 0 && h->redundancy > 0.f )
         h->n_recovery_blocks = 1;
 
     h->max_blocks_per_file = (h->largest_filesize + h->blocksize - 1) / h->blocksize;
