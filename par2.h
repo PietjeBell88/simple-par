@@ -8,7 +8,6 @@
 #include "spar2_version.h"
 
 #include "diskfile.h"
-#include "common.h"
 
 #define SET_MD5(a,b) ({ \
 for ( int _i = 0; _i < 16; _i++ ) \
@@ -96,8 +95,8 @@ typedef struct
     pkt_header_t header;
     uint32_t exponent;
     //char *data;         // ?*4 bytes long
-} pkt_recvslice_t;
 
+} pkt_recvslice_t;
 // Creator Packet
 typedef struct
 {
@@ -109,6 +108,27 @@ typedef struct
 
 typedef struct
 {
+    // Input Files
+    diskfile_t *input_files;
+
+    // Program Options
+    float redundancy;
+    uint64_t blocksize;
+    int n_threads;
+    size_t memory_max;
+
+    int n_input_files;
+    char *basename;
+
+    // Par2 File Output
+    int mimic; // Mimic par2cmdline's creator packet?
+
+    // free() callback
+    void (*param_free)( void * );
+} spar_param_t;
+
+typedef struct
+{
     progress_t *progress;
 
     int block_start;
@@ -117,30 +137,24 @@ typedef struct
     uint16_t **recv_data;
 } thread_t;
 
-/************* MAIN STRUCT **************/
 typedef struct
 {
+    spar_param_t param;
+
     // Input Files
-    diskfile_t *input_files;
-    int n_input_files;
+    //int n_input_files;
     uint16_t n_input_slices;
     size_t largest_filesize;
 
     // Program Options
-    float redundancy;
-    uint64_t blocksize;
     md5_t recovery_id;
     uint16_t n_recovery_blocks;
     uint16_t max_blocks_per_file;
 
-    int n_threads;
     int blocks_per_thread;
-    size_t memory_max;
 
     // Par2 File Output
-    int mimic; // Mimic par2cmdline's creator packet?
     char par2_fnformat[300];
-    char *basename;
     int n_recovery_files;
     char **recovery_filenames;
 
@@ -156,9 +170,38 @@ typedef struct
     thread_t *threads;
 } spar_t;
 
-/*** INTERFACE ***/
-pkt_header_t * spar2_recvslice_get( spar_t *h, int blocknum );
 
-pkt_header_t * spar2_get_packet( spar_t *h, int filenum, int packet_index );
+/* spar_param_default:
+ *      fill x264_param_t with default values */
+void    spar_param_default( spar_param_t * );
 
+
+/* spar_generator_open:
+ *      Returns a generator handler. Copies all parameters from spar2_param_t. */
+spar_t * spar_generator_open( spar_param_t *);
+
+
+/* spar_get_packet:
+ *      Returns the packet with packet_index. This packet is either a critical
+ *      packet (Main, IFSC, FileDesc), Creator packet, or Recovery packet.
+ *      Although these packets could theoretically be requested out of order,
+ *      the limitations of the spar2_recvslive_get function may result in bad
+ *      behavior. */
+pkt_header_t * spar_get_packet( spar_t *, int, int );
+
+/* spar_generator_close:
+ *      Closes the generator handle. */
+void spar_generator_close( spar_t * );
+
+
+/* spar_file_writer:
+ *      Requests the par2 packets in order, and writes them to their respective
+ *      recovery files.*/
+void spar_file_writer( spar_t * );
+
+/* spar_recvslice_get:
+ *      Returns the recovery slice with block number blocknum.
+ *      If the recovery packets are not requested in order, the function may
+ *      return the wrong block. */
+pkt_header_t * spar_recvslice_get( spar_t *, int );
 #endif
