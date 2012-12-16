@@ -1,13 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
+#include <getopt.h>
 
 #include "par2.h"
 #include "diskfile.h"
 #include "common.h"
 #include "reedsolomon.h"
 
-#include "extern/getopt.h"
 #include "extern/crc32.h"
 #include "extern/md5.h"
 

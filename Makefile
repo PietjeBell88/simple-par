@@ -10,7 +10,7 @@ all: default
 default:
 
 SRCS  = common.c diskfile.c reedsolomon.c \
-        extern/md5.c extern/crc32.c extern/getopt.c \
+        extern/md5.c extern/crc32.c \
         par2.c
 
 OBJS =
@@ -41,7 +41,7 @@ endif
 
 
 ifneq ($(HAVE_GETOPT_LONG),1)
-SRCCLI += extras/getopt.c
+SRCCLI += extern/getopt.c
 endif
 
 OBJS   += $(SRCS:%.c=%.o)
