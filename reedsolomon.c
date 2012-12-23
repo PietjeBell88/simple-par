@@ -113,7 +113,7 @@ void lookup_multiply( uint16_t f, uint16_t * __restrict slice, uint16_t * __rest
 #endif
 }
 
-void rs_process( diskfile_t *files, int n_files, int block_start, int block_end, size_t blocksize, uint16_t **dest, progress_t *progress )
+void rs_process( spar_diskfile_t *files, int n_files, int block_start, int block_end, size_t blocksize, uint16_t **dest, progress_t *progress )
 {
     // Set the destination buffers to zero
     int n_blocks = block_end - block_start + 1;

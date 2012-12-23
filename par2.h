@@ -109,7 +109,7 @@ typedef struct
 typedef struct
 {
     // Input Files
-    diskfile_t *input_files;
+    spar_diskfile_t *input_files;
 
     // Program Options
     float redundancy;

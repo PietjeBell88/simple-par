@@ -16,7 +16,7 @@ void generate_creator_packet( spar_t *h );
 void generate_critical_packets( spar_t *h );
 
 void md5_packet( pkt_header_t *header );
-void md5_16k( diskfile_t *df );
+void md5_16k( spar_diskfile_t *df );
 
 void sort(md5_t arr[], int beg, int end);
 
@@ -283,7 +283,7 @@ spar_t * spar_generator_open( spar_param_t *param )
 
     for ( int i = 0; i < h->param.n_input_files; i++ )
     {
-        diskfile_t *df = &h->param.input_files[i];
+        spar_diskfile_t *df = &h->param.input_files[i];
 
         df->n_slices = (df->filesize + h->param.blocksize - 1) / h->param.blocksize;
 
@@ -547,11 +547,11 @@ int spar_parse( spar_param_t *param, int argc, char **argv )
     if ( param->n_threads < 1 )
         param->n_threads = 1;
 
-    param->input_files = malloc( param->n_input_files * sizeof(diskfile_t) );
+    param->input_files = malloc( param->n_input_files * sizeof(spar_diskfile_t) );
 
     for ( int i = 0; i < param->n_input_files; i++ )
     {
-        diskfile_t *df = &param->input_files[i];
+        spar_diskfile_t *df = &param->input_files[i];
 
         df->filename = strdup( argv[optind++] );
         df->virtual_filename = NULL;
@@ -612,7 +612,7 @@ void generate_critical_packets( spar_t *h )
 
     for ( int i = 0; i < h->param.n_input_files; i++ )
     {
-        diskfile_t *df = &h->param.input_files[i];
+        spar_diskfile_t *df = &h->param.input_files[i];
         char *filename_in = (df->virtual_filename == NULL) ? df->filename : df->virtual_filename;
 
         // Allocate a file descriptor packet
@@ -723,7 +723,7 @@ void md5_packet( pkt_header_t *header )
     md5_memory( (void*)(&header->recovery_id), header->length - 32, &(header->packet_md5) );
 }
 
-void md5_16k( diskfile_t *df )
+void md5_16k( spar_diskfile_t *df )
 {
     context_md5_t *ctx = malloc( sizeof(context_md5_t) );
     char buf[1L << 14];

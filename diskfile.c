@@ -4,7 +4,7 @@
 
 #include "diskfile.h"
 
-size_t read_to_buf( diskfile_t *file, long int offset, size_t length, char *buf )
+size_t read_to_buf( spar_diskfile_t *file, long int offset, size_t length, char *buf )
 {
     FILE *fp = fopen( file->filename, "rb" );
     fseek( fp, file->offset + offset, 0 );

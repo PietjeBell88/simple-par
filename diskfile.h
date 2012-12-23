@@ -19,9 +19,9 @@ typedef struct
     md5_t hash_full;
     md5_t hash_16k;
     checksum_t *checksums;
-} diskfile_t;
+} spar_diskfile_t;
 
 
-size_t read_to_buf( diskfile_t *file, long int offset, size_t length, char *buf );
+size_t read_to_buf( spar_diskfile_t *file, long int offset, size_t length, char *buf );
 
 #endif
