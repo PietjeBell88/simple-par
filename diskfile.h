@@ -6,8 +6,9 @@
 #include <stdint.h>
 
 #include "common.h"
+#include "spar2.h"
 
-typedef struct
+struct spar_diskfile_t
 {
     char *filename;
     char *virtual_filename;
@@ -19,8 +20,7 @@ typedef struct
     md5_t hash_full;
     md5_t hash_16k;
     checksum_t *checksums;
-} spar_diskfile_t;
-
+};
 
 size_t read_to_buf( spar_diskfile_t *file, long int offset, size_t length, char *buf );
 

@@ -2,12 +2,10 @@
 #define SPAR_PAR2_H
 
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include "spar2_version.h"
-
-#include "diskfile.h"
+#include "spar2.h"
+#include "common.h"
 
 #define SET_MD5(a,b) ({ \
 for ( int _i = 0; _i < 16; _i++ ) \
@@ -36,29 +34,30 @@ for ( int _i = 0; _i < (n); _i++ ) \
 
 
 /********** PACKET STRINGS **********/
-char PACKET_MAIN[]     = "PAR 2.0\0Main\0\0\0\0";
-char PACKET_FILEDESC[] = "PAR 2.0\0FileDesc";
-char PACKET_IFSC[]     = "PAR 2.0\0IFSC\0\0\0\0";
-char PACKET_RECVSLIC[] = "PAR 2.0\0RecvSlic";
-char PACKET_CREATOR[]  = "PAR 2.0\0Creator\0";
+extern char PACKET_MAIN[];
+extern char PACKET_FILEDESC[];
+extern char PACKET_IFSC[];
+extern char PACKET_RECVSLIC[];
+extern char PACKET_CREATOR[];
 
-char PAR2_MAGIC[]   = "PAR2\0PKT";
+extern char PAR2_MAGIC[];
 
-char PAR2_CREATOR[] = "Created by Simple Par (spar2) revision \"" SPAR_VERSION "\"\0";
+extern char PAR2_CREATOR[];
 
-char PAR2_PAR2CMDLINE[] = "Created by par2cmdline version 0.4.\0";
+extern char PAR2_PAR2CMDLINE[];
 
 /************* PACKETS **************/
 #pragma pack(1)
 
 // Packet Header
-typedef struct {
+struct pkt_header_t
+{
     char     magic[8];
     uint64_t length;
     md5_t    packet_md5;
     md5_t    recovery_id;
     char     type[16];
-} pkt_header_t;
+};
 
 // Main Packet
 typedef struct
@@ -108,27 +107,6 @@ typedef struct
 
 typedef struct
 {
-    // Input Files
-    spar_diskfile_t *input_files;
-
-    // Program Options
-    float redundancy;
-    uint64_t blocksize;
-    int n_threads;
-    size_t memory_max;
-
-    int n_input_files;
-    char *basename;
-
-    // Par2 File Output
-    int mimic; // Mimic par2cmdline's creator packet?
-
-    // free() callback
-    void (*param_free)( void * );
-} spar_param_t;
-
-typedef struct
-{
     progress_t *progress;
 
     int block_start;
@@ -137,7 +115,7 @@ typedef struct
     uint16_t **recv_data;
 } thread_t;
 
-typedef struct
+struct spar_t
 {
     spar_param_t param;
 
@@ -168,40 +146,18 @@ typedef struct
 
     // Threads
     thread_t *threads;
-} spar_t;
+};
 
-
-/* spar_param_default:
- *      fill x264_param_t with default values */
 void    spar_param_default( spar_param_t * );
 
-
-/* spar_generator_open:
- *      Returns a generator handler. Copies all parameters from spar2_param_t. */
 spar_t * spar_generator_open( spar_param_t *);
 
-
-/* spar_get_packet:
- *      Returns the packet with packet_index. This packet is either a critical
- *      packet (Main, IFSC, FileDesc), Creator packet, or Recovery packet.
- *      Although these packets could theoretically be requested out of order,
- *      the limitations of the spar2_recvslive_get function may result in bad
- *      behavior. */
 pkt_header_t * spar_get_packet( spar_t *, int, int );
 
-/* spar_generator_close:
- *      Closes the generator handle. */
 void spar_generator_close( spar_t * );
 
+void spar_param_default( spar_param_t *param );
 
-/* spar_file_writer:
- *      Requests the par2 packets in order, and writes them to their respective
- *      recovery files.*/
-void spar_file_writer( spar_t * );
+void spar_param_free( void *arg );
 
-/* spar_recvslice_get:
- *      Returns the recovery slice with block number blocknum.
- *      If the recovery packets are not requested in order, the function may
- *      return the wrong block. */
-pkt_header_t * spar_recvslice_get( spar_t *, int );
 #endif

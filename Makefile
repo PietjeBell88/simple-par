@@ -11,6 +11,8 @@ SRCS  = common.c diskfile.c reedsolomon.c \
         extern/md5.c extern/crc32.c \
         par2.c
 
+SRCCLI = spar2.c
+
 OBJS =
 OBJCLI =
 
