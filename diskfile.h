@@ -10,6 +10,7 @@
 typedef struct
 {
     char *filename;
+    char *virtual_filename;
 
     size_t offset;     // When splitting
     size_t filesize;   // File size

@@ -428,7 +428,12 @@ void spar_param_free( void *arg )
 
     for( int i = 0; i < param->n_input_files; i++ )
     {
+        if( param->input_files[i].virtual_filename != NULL &&
+            param->input_files[i].virtual_filename != param->input_files[i].filename )
+            free( param->input_files[i].virtual_filename );
+
         free( param->input_files[i].filename );
+
         free( param->input_files[i].checksums );
     }
 
@@ -549,8 +554,9 @@ int spar_parse( spar_param_t *param, int argc, char **argv )
         diskfile_t *df = &param->input_files[i];
 
         df->filename = strdup( argv[optind++] );
-        df->offset   = 0; //offsets[i];
-        df->filesize = FILESIZE( df->filename ) - df->offset;
+        df->virtual_filename = NULL;
+        df->offset   = 0;
+        df->filesize = FILESIZE( df->filename );
     }
 
     param->param_free = &spar_param_free;
@@ -607,7 +613,7 @@ void generate_critical_packets( spar_t *h )
     for ( int i = 0; i < h->param.n_input_files; i++ )
     {
         diskfile_t *df = &h->param.input_files[i];
-        char *filename_in = df->filename;
+        char *filename_in = (df->virtual_filename == NULL) ? df->filename : df->virtual_filename;
 
         // Allocate a file descriptor packet
         size_t fn_length = (strlen(filename_in) + 3) & ~3;
