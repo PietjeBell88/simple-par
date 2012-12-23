@@ -4,8 +4,6 @@ include config.mak
 
 .PHONY: default clean
 
-default: spar2$(EXE)
-
 all: default
 default:
 
@@ -14,6 +12,7 @@ SRCS  = common.c diskfile.c reedsolomon.c \
         par2.c
 
 OBJS =
+OBJCLI =
 
 CONFIG := $(shell cat config.h)
 
@@ -45,18 +44,27 @@ SRCCLI += extern/getopt.c
 endif
 
 OBJS   += $(SRCS:%.c=%.o)
+OBJCLI += $(SRCCLI:%.c=%.o)
 
-.PHONY: all default clean distclean install uninstall
+.PHONY: all default clean distclean install uninstall lib-static cli
+
+cli: spar2$(EXE)
+lib-static: $(LIBSPAR2)
+
+$(LIBSPAR2): .depend $(OBJS) $(OBJASM)
+	rm -f $(LIBSPAR2)
+	$(AR)$@ $(OBJS) $(OBJASM)
+	$(if $(RANLIB), $(RANLIB) $@)
 
 ifneq ($(EXE),)
 .PHONY: spar2
 spar2: spar2$(EXE)
 endif
 
-spar2$(EXE): .depend $(OBJS) $(OBJASM)
-	$(LD)$@ $(OBJS) $(OBJASM) $(LDFLAGS)
+spar2$(EXE): .depend $(OBJS) $(OBJCLI) $(OBJASM)
+	$(LD)$@ $(OBJS) $(OBJASM) $(OBJCLI) $(LDFLAGS)
 
-$(OBJS) $(OBJASM): .depend
+$(OBJS) $(OBJASM) $(OBJCLI): .depend
 
 %.o: %.asm
 	$(AS) $(ASFLAGS) -o $@ $<
@@ -71,7 +79,7 @@ $(OBJS) $(OBJASM): .depend
 
 .depend: config.mak
 	@rm -f .depend
-	@$(foreach SRC, $(SRCS), $(CC) $(CFLAGS) $(SRC) $(DEPMT) $(SRC:%.c=%.o) $(DEPMM) 1>> .depend;)
+	@$(foreach SRC, $(SRCS) $(SRCCLI), $(CC) $(CFLAGS) $(SRC) $(DEPMT) $(SRC:%.c=%.o) $(DEPMM) 1>> .depend;)
 
 config.mak:
 	./configure
@@ -99,7 +107,7 @@ fprofiled:
 endif
 
 clean:
-	rm -f $(OBJS) *.a *.lib *.exp *.pdb spar2 spar2.exe .depend
+	rm -f $(OBJS) $(OBJASM) $(OBJCLI) *.a *.lib *.exp *.pdb spar2 spar2.exe .depend
 	rm -f $(SRCS:%.c=%.gcda) $(SRCS	:%.c=%.gcno) *.dyn pgopti.dpi pgopti.dpi.lock
 
 distclean: clean

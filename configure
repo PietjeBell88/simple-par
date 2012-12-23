@@ -20,6 +20,8 @@ Standard options:
   --extra-ldflags=ELDFLAGS add ELDFLAGS to LDFLAGS
 
 Configuration options:
+  --disable-cli            disable cli
+  --enable-static          build static library
   --disable-thread         disable multithreaded encoding
   --enable-win32thread     use win32threads (windows only)
 
@@ -229,6 +231,7 @@ bindir='${exec_prefix}/bin'
 DEVNULL='/dev/null'
 
 cli="yes"
+static="no"
 thread="auto"
 asm="auto"
 debug="no"
@@ -261,6 +264,12 @@ for opt do
             ;;
         --bindir=*)
             bindir="$optarg"
+            ;;
+        --disable-cli)
+            cli="no"
+            ;;
+        --enable-static)
+            static="yes"
             ;;
         --disable-asm)
             asm="no"
@@ -307,7 +316,7 @@ for opt do
     esac
 done
 
-[ "$cli" = "no" ] && die "Nothing to build. Enable cli, shared or static."
+[ "$cli" = "no" -a "static" = "no" ] && die "Nothing to build. Enable cli or static."
 
 CC="${CC-${cross_prefix}gcc}"
 AR="${AR-${cross_prefix}ar}"
@@ -743,6 +752,7 @@ if [ $compiler = ICL ]; then
     LD="xilink -out:"
     LDFLAGS="-nologo -incremental:no $(icl_ldflags $LDFLAGS)"
     LDFLAGSCLI="$(icl_ldflags $LDFLAGSCLI)"
+    LIBSPAR2=libspar2.lib
     RANLIB=
     [ -n "$RC" ] && RC="$RC -I. -I\./extras -fo"
     STRIP=
@@ -757,6 +767,7 @@ else
     DEPMM="-MM -g0"
     DEPMT="-MT"
     LD="$CC -o "
+    LIBSPAR2=libspar2.a
     [ -n "$RC" ] && RC="$RC -I. -o "
 fi
 if [ $compiler = GNU ]; then
@@ -790,6 +801,7 @@ DEPMM=$DEPMM
 DEPMT=$DEPMT
 LD=$LD
 LDFLAGS=$LDFLAGS
+LIBSPAR2=$LIBSPAR2
 AR=$AR
 RANLIB=$RANLIB
 STRIP=$STRIP
@@ -810,9 +822,15 @@ if [ $compiler = ICL ]; then
     echo '     $(CC) $(CFLAGS) -c -Fo$@ $<' >> config.mak
 fi
 
-./version.sh >> spar2_version.h
+if [ "$cli" = "yes" ]; then
+    echo 'default: cli' >> config.mak
+fi
 
-pclibs="-L$libdir -lspar2 $libpthread"
+if [ "$static" = "yes" ]; then
+    echo 'default: lib-static' >> config.mak
+fi
+
+./version.sh >> spar2_version.h
 
 cat > spar2.pc << EOF
 prefix=$prefix
@@ -822,7 +840,8 @@ includedir=$includedir
 
 Name: spar2
 Description: Par2 file creator.
-Libs: $pclibs
+Libs: -L$libdir -lspar2
+Libs.private: $libpthread
 Cflags: -I$includedir
 EOF
 
@@ -830,6 +849,7 @@ cat > conftest.log <<EOF
 platform:      $ARCH
 system:        $SYS
 cli:           $cli
+static:        $static
 asm:           $asm
 thread:        $thread
 debug:         $debug
