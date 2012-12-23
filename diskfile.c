@@ -10,7 +10,7 @@ size_t read_to_buf( diskfile_t *file, long int offset, size_t length, char *buf 
     fseek( fp, file->offset + offset, 0 );
     memset( buf, 0, length );
 
-    size_t max_read = file->filesize - (file->offset + offset); // Bytes remaining in diskfile
+    size_t max_read = file->filesize - offset; // Bytes remaining in diskfile
     size_t to_read  = MIN(length,max_read);
     size_t read = fread( buf, 1, to_read, fp );
     if ( read < to_read && !feof( fp ) )
