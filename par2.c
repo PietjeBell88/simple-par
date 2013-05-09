@@ -346,6 +346,20 @@ spar_t * spar_generator_open( spar_param_t *param )
     return h;
 }
 
+void spar_get_filenames_packets( spar_t *h, char ***filenames, int **n_packets, int *n_files )
+{
+    *n_files = h->n_recovery_files;
+
+    *filenames = malloc( *n_files * sizeof(char *) );
+    *n_packets = malloc( *n_files * sizeof(int) );
+
+    for( int f = 0; f < h->n_recovery_files; f++ )
+    {
+        (*filenames)[f] = strdup( h->recovery_filenames[f] );
+        (*n_packets)[f] = h->packets_recvfile[f];
+    }
+}
+
 void spar_generator_close( spar_t *h )
 {
     if ( h->param.param_free )

@@ -158,6 +158,8 @@ void    spar_param_default( spar_param_t * );
 
 spar_t * spar_generator_open( spar_param_t *);
 
+void spar_get_filenames_packets( spar_t *, char ***, int **, int * );
+
 int spar_get_packet( spar_t *, spar_packet_t ** );
 
 pkt_header_t * spar_get_packet_adv( spar_t *, int, int );

@@ -57,6 +57,11 @@ void spar_add_input_file( spar_param_t *, char *, char *, size_t, size_t );
 spar_t * spar_generator_open( spar_param_t *);
 
 
+/* spar_get_filenames_packets:
+ *      Writes to the two lists the filenames and the amount of packets in the file. */
+void spar_get_filenames_packets( spar_t *, char ***, int **, int * );
+
+
 /* spar_get_packet (thread-safe):
  *      Return 0 on succes, -1 when no more packets are available.
  *      The packet returned by this function is either a critical
