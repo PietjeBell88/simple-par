@@ -60,9 +60,11 @@ void spar_generator_close( spar_t * );
  *      recovery files.*/
 void spar_file_writer( spar_t * );
 
+
 /* spar_recvslice_get:
  *      Returns the recovery slice with block number blocknum.
  *      If the recovery packets are not requested in order, the function may
- *      return the wrong block. */
+ *      return the wrong block.
+ *      Requires that you include par2.h as well. */
 pkt_header_t * spar_recvslice_get( spar_t *, int );
 #endif
