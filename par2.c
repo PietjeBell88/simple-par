@@ -43,10 +43,8 @@ typedef struct
 
 void * rs_process_wrapper( void *thread );
 
-pkt_header_t * spar_get_packet( spar_t *h, int filenum, int packet_index )
+pkt_header_t * spar_get_packet_adv( spar_t *h, int filenum, int packet_index )
 {
-    //TODO: This function should probably return a copy of the critical packets and the creator packet
-
     const int recvfile_block_start = h->recvfile_block_start[filenum];
     const int blocks_current_file = h->recvfile_block_end[filenum] - h->recvfile_block_start[filenum] + 1;
     const int packets_recv_crit = h->packets_recvfile[filenum] - 1; // Exclude the creator packet in the calculations
@@ -57,15 +55,24 @@ pkt_header_t * spar_get_packet( spar_t *h, int filenum, int packet_index )
         return NULL;
     }
 
+    // We always want to return a copy of the packet requested
+    pkt_header_t *return_copy;
+    size_t packet_length;
+
     // The last packet in each file is the creator packet
     if( packet_index == h->packets_recvfile[filenum] - 1 )
-        return (pkt_header_t*)h->creator_packet;
+    {
+        packet_length = h->creator_packet->header.length;
+        return_copy = malloc( packet_length );
+        memcpy( return_copy, h->creator_packet, packet_length );
+        return return_copy;
+    }
 
     // These two are not actual recovery block indices, although they both have the same offset.
     const int next_recv_block = ((packet_index + 1) * blocks_current_file - 1) / packets_recv_crit;
     const int cur_recv_block  = ((packet_index    ) * blocks_current_file - 1) / packets_recv_crit;
 
-    // Check if we have to return a recovery packet
+    // Check if we have to return a recovery packet (already a copy)
     if( packet_index == 0 || next_recv_block > cur_recv_block )
         return spar_recvslice_get( h, next_recv_block + recvfile_block_start );
 
@@ -78,7 +85,14 @@ pkt_header_t * spar_get_packet( spar_t *h, int filenum, int packet_index )
     const int copies_crit = (packets_recv_crit - blocks_current_file) / h->n_critical_packets;
 
     int crit_packet_index = ((packet_index * copies_crit * h->n_critical_packets - 1) / packets_recv_crit)  % h->n_critical_packets;
-    return h->critical_packets[crit_packet_index];
+
+    pkt_header_t *header = h->critical_packets[crit_packet_index];
+    packet_length = header->length;
+
+    return_copy = malloc( packet_length );
+    memcpy( return_copy, header, packet_length );
+
+    return return_copy;
 }
 
 

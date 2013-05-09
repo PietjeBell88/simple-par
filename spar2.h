@@ -5,6 +5,8 @@
 
 #include "spar2_version.h"
 
+#define SPAR2_API 1
+
 typedef struct spar_diskfile_t spar_diskfile_t;
 typedef struct spar_t spar_t;
 typedef struct pkt_header_t pkt_header_t;
@@ -40,13 +42,13 @@ void    spar_param_default( spar_param_t * );
 spar_t * spar_generator_open( spar_param_t *);
 
 
-/* spar_get_packet:
- *      Returns the packet with packet_index. This packet is either a critical
- *      packet (Main, IFSC, FileDesc), Creator packet, or Recovery packet.
- *      Although these packets could theoretically be requested out of order,
- *      the limitations of the spar2_recvslive_get function may result in bad
- *      behavior. */
-pkt_header_t * spar_get_packet( spar_t *, int, int );
+/* spar_get_packet_adv (NOT thread-safe):
+ *      If you want to do manipulation on the type of the packet, you will have
+ *      to include par2.h as well, and then you can use the extra information
+ *      you can get from this version.
+ *      This function is not thread-safe, and requesting packets out of order
+ *      may result in a different or faulty packet being returned! */
+pkt_header_t * spar_get_packet_adv( spar_t *, int, int );
 
 /* spar_generator_close:
  *      Closes the generator handle. */

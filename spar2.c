@@ -52,7 +52,7 @@ void spar_file_writer( spar_t *h )
         // Get the packets, and write them to the file
         for( int p = 0; p < h->packets_recvfile[f]; p++ )
         {
-            pkt_header_t *packet = spar_get_packet( h, f, p );
+            pkt_header_t *packet = spar_get_packet_adv( h, f, p );
 
             if( packet == NULL )
             {
@@ -70,9 +70,9 @@ void spar_file_writer( spar_t *h )
                 progress->w_done++;
                 progress_print( progress );
                 pthread_mutex_unlock( progress->mut );
-
-                free( packet );
             }
+
+            free( packet );
         }
         fclose( fp );
     }
