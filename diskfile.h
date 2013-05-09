@@ -22,6 +22,8 @@ struct spar_diskfile_t
     checksum_t *checksums;
 };
 
+void spar_add_input_file( spar_param_t *param, char *filename, char *virtual_filename, size_t offset, size_t filesize );
+
 size_t read_to_buf( spar_diskfile_t *file, long int offset, size_t length, char *buf );
 
 #endif

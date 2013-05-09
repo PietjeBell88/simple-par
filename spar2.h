@@ -5,7 +5,7 @@
 
 #include "spar2_version.h"
 
-#define SPAR2_API 1
+#define SPAR2_API 2
 
 typedef struct spar_diskfile_t spar_diskfile_t;
 typedef struct spar_t spar_t;
@@ -36,6 +36,10 @@ typedef struct
  *      fill x264_param_t with default values */
 void    spar_param_default( spar_param_t * );
 
+
+/* spar_add_input_file:
+ *      Adds an input file to be processed */
+void spar_add_input_file( spar_param_t *, char *, char *, size_t, size_t );
 
 /* spar_generator_open:
  *      Returns a generator handler. Copies all parameters from spar2_param_t. */
