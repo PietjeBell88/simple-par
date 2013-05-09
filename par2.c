@@ -335,15 +335,6 @@ void spar_generator_close( spar_t *h )
     free( h );
 }
 
-void spar_param_default( spar_param_t *param )
-{
-    param->memory_max = 0;
-    param->redundancy = 5.f;
-    param->blocksize  = 640000;
-    param->n_threads  = 1;
-    param->mimic      = 0;
-    param->param_free = NULL;
-}
 
 void spar_param_free( void *arg )
 {
@@ -363,6 +354,20 @@ void spar_param_free( void *arg )
     }
 
     free( param->input_files );
+}
+
+void spar_param_default( spar_param_t *param )
+{
+    param->memory_max = 0;
+    param->redundancy = 5.f;
+    param->blocksize  = 640000;
+    param->n_threads  = 1;
+    param->mimic      = 0;
+
+    param->n_input_files = 0;
+    param->input_files = NULL;
+
+    param->param_free = NULL;
 }
 
 void set_recovery_id( spar_t *h )
