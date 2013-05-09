@@ -5,11 +5,22 @@
 
 #include "spar2_version.h"
 
-#define SPAR2_API 2
+#define SPAR2_API 3
 
 typedef struct spar_diskfile_t spar_diskfile_t;
 typedef struct spar_t spar_t;
 typedef struct pkt_header_t pkt_header_t;
+
+typedef struct
+{
+    int filenum;
+    int packetnum;
+
+    size_t offset; // offset of this packet in the file in bytes
+    size_t size;   // size of this packet in bytes
+
+    char *data;
+} spar_packet_t;
 
 typedef struct
 {
@@ -44,6 +55,15 @@ void spar_add_input_file( spar_param_t *, char *, char *, size_t, size_t );
 /* spar_generator_open:
  *      Returns a generator handler. Copies all parameters from spar2_param_t. */
 spar_t * spar_generator_open( spar_param_t *);
+
+
+/* spar_get_packet (thread-safe):
+ *      Return 0 on succes, -1 when no more packets are available.
+ *      The packet returned by this function is either a critical
+ *      packet (Main, IFSC, FileDesc), Creator packet, or Recovery packet.
+ *      This function is thread-safe, and will return packets in sequential
+ *      order. */
+int spar_get_packet( spar_t *, spar_packet_t ** );
 
 
 /* spar_get_packet_adv (NOT thread-safe):

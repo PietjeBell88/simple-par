@@ -146,11 +146,19 @@ struct spar_t
 
     // Threads
     thread_t *threads;
+
+    // Thread-safe packet generator
+    pthread_mutex_t *generator_mut;
+    int cur_filenum;
+    int cur_packet;
+    size_t cur_offset;
 };
 
 void    spar_param_default( spar_param_t * );
 
 spar_t * spar_generator_open( spar_param_t *);
+
+int spar_get_packet( spar_t *, spar_packet_t ** );
 
 pkt_header_t * spar_get_packet_adv( spar_t *, int, int );
 

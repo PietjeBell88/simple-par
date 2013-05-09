@@ -95,6 +95,45 @@ pkt_header_t * spar_get_packet_adv( spar_t *h, int filenum, int packet_index )
     return return_copy;
 }
 
+int spar_get_packet( spar_t *h, spar_packet_t **packet )
+{
+    // Thread-safe ordered packet generator
+    pthread_mutex_lock( h->generator_mut );
+
+    // Check if we are not already done
+    if( h->cur_filenum >= h->n_recovery_files )
+    {
+        pthread_mutex_unlock( h->generator_mut );
+        return -1;
+    }
+
+    // If we have a packet to generate, get one:
+    pkt_header_t *header = spar_get_packet_adv( h, h->cur_filenum, h->cur_packet );
+
+    // Allocate a return packet
+    *packet = malloc( sizeof(spar_packet_t) );
+
+    (*packet)->filenum   = h->cur_filenum;
+    (*packet)->packetnum = h->cur_packet;
+    (*packet)->offset = h->cur_offset;
+    (*packet)->size = header->length;
+    (*packet)->data = (char*)header;
+
+    // Set the file number and packet index of the next packet to be generated
+    h->cur_packet += 1;
+    h->cur_offset += header->length;
+
+    if( h->cur_packet >= h->packets_recvfile[h->cur_filenum] )
+    {
+        h->cur_filenum += 1;
+        h->cur_packet = 0;
+        h->cur_offset = 0;
+    }
+
+    pthread_mutex_unlock( h->generator_mut );
+
+    return 0;
+}
 
 pkt_header_t * spar_recvslice_get( spar_t *h, int blocknum )
 {
@@ -297,6 +336,13 @@ spar_t * spar_generator_open( spar_param_t *param )
         }
     }
 
+    // Thread-safe packet generator
+    h->generator_mut = malloc( sizeof(pthread_mutex_t) );
+    pthread_mutex_init( h->generator_mut, NULL );
+
+    h->cur_filenum = 0;
+    h->cur_packet = 0;
+
     return h;
 }
 
@@ -332,9 +378,11 @@ void spar_generator_close( spar_t *h )
     free( h->recvfile_block_end );
     free( h->packets_recvfile );
 
+    pthread_mutex_destroy( h->generator_mut );
+    free( h->generator_mut );
+
     free( h );
 }
-
 
 void spar_param_free( void *arg )
 {
